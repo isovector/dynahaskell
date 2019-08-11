@@ -40,9 +40,6 @@ findInProgress :: [LHsDecl GhcPs] -> [LHsDecl GhcPs]
 findInProgress = filter (everything (||) $ mkQ False $ f2 underwayOcc)
 
 
-target :: Data a => a -> [HsExpr GhcPs]
-target = everything (++) $ mkQ [] getUnderway
-
 
 f2 :: OccName -> HsExpr GhcPs -> Bool
 f2 occ (HsVar _ (L _ (Unqual occ'))) = occ == occ'
@@ -53,6 +50,10 @@ f2 _ _ = False
 
 
 
+
+
+target :: Data a => a -> [HsExpr GhcPs]
+target = everything (++) $ mkQ [] getUnderway
 
 isUnderway :: HsExpr GhcPs -> Bool
 isUnderway (Underway 0 _) = True
@@ -72,6 +73,7 @@ main = do
 
     let unbound = HsUnboundVar NoExt (TrueExprHole $ mkVarOcc "_yo")
 
+    pprTraceM "not replaced :(" . ppr $ p & biplate . filtered isUnderway .~ unbound
     pprTraceM "not replaced :(" . ppr $ p & upon target . _head .~ unbound
     pprTraceM "replaced!"       . ppr $ p & everywhere (mkT $ replaceUnderway unbound)
 
