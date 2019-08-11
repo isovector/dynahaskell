@@ -46,14 +46,23 @@ findInProgress :: [LHsDecl GhcPs] -> [LHsDecl GhcPs]
 findInProgress = filter (everything (||) $ mkQ False $ f2 underwayOcc)
 
 pattern Underway :: Integer -> HsExpr GhcPs -> HsExpr GhcPs
-pattern Underway i activity
-  <- HsApp _ (L _ (HsApp _ (L _ ( HsVar _ (L _ (Unqual ((== underwayOcc) -> True)))))
-                           (L _ (HsOverLit _ (OverLit _ (HsIntegral (IL _ False i)) _)))))
-             (L _ activity)
+pattern Underway i activity <-
+  HsApp _ (L _ (HsApp _ (L _ ( HsVar _ (L _ (Unqual ((== underwayOcc) -> True)))))
+                        (L _ (HsOverLit _ (OverLit _ (HsIntegral (IL _ False i)) _)))))
+          (L _ activity) where
+  Underway i activity =
+    HsApp NoExt (noLoc (HsApp NoExt (noLoc ( HsVar NoExt (noLoc (Unqual underwayOcc))))
+                (noLoc (HsOverLit NoExt (OverLit NoExt (HsIntegral (IL NoSourceText False i)) undefined)))))
+          (noLoc activity) where
 
 unUnderway :: HsExpr GhcPs -> HsExpr GhcPs
 unUnderway (Underway 0 z) = z
 unUnderway a = a
+
+succUnderway :: HsExpr GhcPs -> HsExpr GhcPs
+succUnderway (Underway n z) = Underway (n + 1) z
+succUnderway a = a
+
 
 
 f2 :: OccName -> HsExpr GhcPs -> Bool
@@ -67,7 +76,7 @@ main = do
   let inprog = findInProgress $ hsmodDecls a
   for_ inprog $ \p -> do
     pprTraceM "found" $ ppr p
-    pprTraceM "replaced" . ppr $ everywhere (mkT unUnderway) p
+    pprTraceM "replaced" . ppr $ everywhere (mkT succUnderway) p
      -- p & biplate . filtered f2 .~ HsUnboundVar NoExt (TrueExprHole $ mkVarOcc "_yo")
       -- p & partsOf (biplate . filtered f2) . reversed . _head .~ HsUnboundVar NoExt (TrueExprHole $ mkVarOcc "_yo")
      -- p & biplate . filtered f2 .~ HsUnboundVar NoExt (TrueExprHole $ mkVarOcc "_yo")
