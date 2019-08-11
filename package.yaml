@@ -25,6 +25,7 @@ dependencies:
 - ghc
 - brick
 - syb
+- lens
 
 library:
   source-dirs: src
