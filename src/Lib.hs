@@ -63,6 +63,13 @@ succUnderway :: HsExpr GhcPs -> HsExpr GhcPs
 succUnderway (Underway n z) = Underway (n + 1) z
 succUnderway a = a
 
+predUnderway :: HsExpr GhcPs -> HsExpr GhcPs
+predUnderway (Underway n z) = Underway (n - 1) z
+predUnderway a = a
+
+finish :: Data a => a -> a
+finish = everywhere (mkT predUnderway) . everywhere (mkT unUnderway)
+
 
 
 f2 :: OccName -> HsExpr GhcPs -> Bool
@@ -76,7 +83,7 @@ main = do
   let inprog = findInProgress $ hsmodDecls a
   for_ inprog $ \p -> do
     pprTraceM "found" $ ppr p
-    pprTraceM "replaced" . ppr $ everywhere (mkT succUnderway) p
+    pprTraceM "replaced" . ppr $ finish $ finish p
      -- p & biplate . filtered f2 .~ HsUnboundVar NoExt (TrueExprHole $ mkVarOcc "_yo")
       -- p & partsOf (biplate . filtered f2) . reversed . _head .~ HsUnboundVar NoExt (TrueExprHole $ mkVarOcc "_yo")
      -- p & biplate . filtered f2 .~ HsUnboundVar NoExt (TrueExprHole $ mkVarOcc "_yo")
