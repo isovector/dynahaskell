@@ -21,6 +21,10 @@ description:         Please see the README on GitHub at <https://github.com/isov
 
 dependencies:
 - base >= 4.7 && < 5
+- ghc-exactprint
+- ghc
+- brick
+- syb
 
 library:
   source-dirs: src
