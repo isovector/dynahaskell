@@ -1,31 +1,70 @@
+{-# LANGUAGE RankNTypes           #-}
+
 module MarkerUtils where
 
 import BasicTypes
-import Generics.SYB
+import Generics.SYB hiding (Generic)
+import GHC.Generics
 import HsSyn
 import OccName
 import RdrName
 import SrcLoc
+import Control.Lens
+import Data.Generics.Product.Positions
+import Data.Generics.Sum.Constructors
+import Data.Data.Lens
+import GenericOrphans ()
+import MarkerLenses
+
 
 pattern Underway :: Integer -> HsExpr GhcPs -> HsExpr GhcPs
 pattern Underway i activity <-
   HsApp _ (L _ (HsApp _ (L _ ( HsVar _ (L _ (Unqual ((== underwayOcc) -> True)))))
                         (L _ (HsOverLit _ (OverLit _ (HsIntegral (IL _ False i)) _)))))
-          (L _ activity) where
+          (L _ (HsPar _ (L _ activity))) where
   Underway i activity =
     HsApp NoExt (noLoc (HsApp NoExt (noLoc ( HsVar NoExt (noLoc (Unqual underwayOcc))))
                 (noLoc (HsOverLit NoExt (OverLit NoExt (HsIntegral (IL NoSourceText False i)) undefined)))))
-          (noLoc activity) where
+          (noLoc (HsPar NoExt (noLoc activity))) where
 
-getUnderway :: HsExpr GhcPs -> [HsExpr GhcPs]
-getUnderway (Underway 0 z) = [z]
-getUnderway _ = []
+nowUnderway :: Data a => Traversal' a (HsExpr GhcPs)
+nowUnderway = nowUnderwayC
+            . _Ctor' @"HsApp"
+            . position @3
+            . loc
 
-todoOcc :: OccName
-todoOcc = mkVarOcc "todo"
+nowUnderwayC :: Data a => Traversal' a (HsExpr GhcPs)
+nowUnderwayC = locate isUnderway
+ where
+   isUnderway (Underway 0 _) = True
+   isUnderway _ = False
+
+underwayC :: Data a => Traversal' a (HsExpr GhcPs)
+underwayC = locate isUnderway
+ where
+   isUnderway (Underway _ _) = True
+   isUnderway _ = False
+
+matchOcc :: String -> HsExpr GhcPs -> Bool
+matchOcc occ (HsVar _ (L _ (Unqual occ'))) = mkVarOcc occ == occ'
+matchOcc _ _ = False
+
+locate :: (Data a, Data b) => (b -> Bool) -> Traversal' a b
+locate f = biplate . deepOf uniplate (filtered f)
 
 underwayOcc :: OccName
 underwayOcc = mkVarOcc "underway"
+
+nextSolve :: Data a => Traversal' a (HsExpr GhcPs)
+nextSolve = locate (matchOcc "solve")
+
+toSolveHole :: HsExpr GhcPs
+toSolveHole = HsUnboundVar NoExt (TrueExprHole $ mkVarOcc "_to_solve")
+
+doSolve :: Data a => a -> a
+doSolve p = everywhere (mkT succUnderway) p & nextSolve .~ Underway 0 toSolveHole
+
+
 
 unUnderway :: HsExpr GhcPs -> HsExpr GhcPs
 unUnderway (Underway 0 z) = z
@@ -40,7 +79,7 @@ predUnderway (Underway n z) = Underway (n - 1) z
 predUnderway a = a
 
 finish :: Data a => a -> a
-finish = everywhere (mkT predUnderway) . everywhere (mkT unUnderway)
+finish a = a & nowUnderwayC %~ unUnderway & everywhere (mkT predUnderway)
 
 
 
