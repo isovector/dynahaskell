@@ -27,6 +27,16 @@ dependencies:
 - syb
 - lens
 
+default-extensions:
+- FlexibleContexts
+- GADTs
+- KindSignatures
+- PatternSynonyms
+- ViewPatterns
+
+ghc-options:
+  - -Wall
+
 library:
   source-dirs: src
 
