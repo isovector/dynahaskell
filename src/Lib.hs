@@ -1,13 +1,4 @@
-{-# LANGUAGE DataKinds          #-}
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE FlexibleContexts   #-}
-{-# LANGUAGE FlexibleInstances  #-}
-{-# LANGUAGE GADTs              #-}
-{-# LANGUAGE KindSignatures     #-}
-{-# LANGUAGE PatternSynonyms    #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeApplications   #-}
-{-# LANGUAGE ViewPatterns       #-}
+{-# LANGUAGE TupleSections #-}
 
 module Lib where
 
@@ -15,7 +6,9 @@ import Data.Foldable
 import GHC.Generics
 import Generics.SYB hiding (Generic)
 import HsSyn
-import Language.Haskell.GHC.ExactPrint.Parsers
+import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
+import Language.Haskell.GHC.ExactPrint
+import GHC (SrcSpan, DynFlags, extensions)
 import MarkerUtils
 import Markers
 import OccName
@@ -25,11 +18,14 @@ import SrcLoc
 import Control.Lens
 
 
+parseModuleFromString
+  :: FilePath
+  -> String
+  -> IO (Either (GHC.SrcSpan, String) (DynFlags, (Anns, Located (HsModule GhcPs))))
+parseModuleFromString fp s = ghcWrapper $ do
+  dflags <- initDynFlagsPure fp s
+  return $ fmap (dflags, ) $ parseModuleFromStringInternal dflags fp s
 
-unapply :: OccName -> HsExpr GhcPs -> HsExpr GhcPs
-unapply occ (HsApp _ (L _ (HsVar _ (L _ (Unqual occ')))) (L _ z))
-  | occ == occ' = z
-unapply _ z = z
 
 class Foo (a :: * -> *) where
   janky :: a x
@@ -48,10 +44,21 @@ findInProgress = filter (everything (||) $ mkQ False $ matchOcc "underway")
 
 main :: IO ()
 main = do
-  Right (_anns, (L _ a)) <- parseModule "src/Lib.hs"
-  let inprog = findInProgress $ hsmodDecls a
-  for_ inprog $ \p -> do
-    pprTraceM "found" $ ppr p
+  contents <- readFile "src/Lib.hs"
+  Right (dflags, (_anns, z@(L _ a))) <- parseModuleFromString "src/Lib.hs" contents
+  pprTraceM "flags" $ ppr $ extensions dflags
 
-    pprTraceM "replaced!" . ppr $ doSolve p
+  let Right(_anns2, expr) = parseExpr dflags "src/Lib.hs" "solve"
+  pprTraceM "parsed" $ ppr expr
+
+  let z' = doSolve z
+  pprTraceM "ok" $ ppr z'
+  -- putStrLn $ exactPrint z' _anns
+
+
+--   let inprog = findInProgress $ hsmodDecls a
+--   for_ inprog $ \p -> do
+--     pprTraceM "found" $ ppr p
+
+--     pprTraceM "replaced!" . ppr $ doSolve p
 
