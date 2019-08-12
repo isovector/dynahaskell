@@ -44,9 +44,17 @@ default-extensions:
 - FlexibleInstances
 - TypeApplications
 - DataKinds
+- ScopedTypeVariables
+- TypeFamilies
+- GADTs
+- PolyKinds
+- TypeOperators
+- LambdaCase
+- BlockArguments
 
 ghc-options:
   - -Wall
+  - -fplugin=Polysemy.Plugin
 
 library:
   source-dirs: src
