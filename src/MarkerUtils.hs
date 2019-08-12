@@ -29,21 +29,22 @@ pattern Underway i activity <-
           (noLoc (HsPar NoExt (noLoc activity))) where
 
 nowUnderway :: Data a => Traversal' a (HsExpr GhcPs)
-nowUnderway = nowUnderwayC
-            . _Ctor' @"HsApp"
-            . position @3
-            . loc
+nowUnderway = prevUnderway 0
+
+prevUnderway :: Data a => Integer -> Traversal' a (HsExpr GhcPs)
+prevUnderway n
+  = prevUnderwayC n
+  . _Ctor' @"HsApp"
+  . position @3
+  . loc
 
 nowUnderwayC :: Data a => Traversal' a (HsExpr GhcPs)
-nowUnderwayC = locate isUnderway
- where
-   isUnderway (Underway 0 _) = True
-   isUnderway _ = False
+nowUnderwayC = prevUnderwayC 0
 
-underwayC :: Data a => Traversal' a (HsExpr GhcPs)
-underwayC = locate isUnderway
+prevUnderwayC :: Data a => Integer -> Traversal' a (HsExpr GhcPs)
+prevUnderwayC n = locate isUnderway
  where
-   isUnderway (Underway _ _) = True
+   isUnderway (Underway n' _) = n == n'
    isUnderway _ = False
 
 matchOcc :: String -> HsExpr GhcPs -> Bool
