@@ -2,19 +2,31 @@
 
 module Lib where
 
-import GHC (SrcSpan, DynFlags)
-import HsSyn
-import Language.Haskell.GHC.ExactPrint
-import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
-import MarkerUtils
-import SrcLoc
-import Outputable
-import Sem.HoleType
-import Sem.Ghcid
-import Polysemy
-import Polysemy.State
-import Polysemy.Input
-import Polysemy.Trace
+import Control.Monad
+import           Brick
+import qualified Brick.Main as M
+import           GHC (SrcSpan, DynFlags)
+import qualified Graphics.Vty as V
+import           HsSyn
+import           Language.Haskell.GHC.ExactPrint
+import           Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
+import           MarkerUtils
+import           Outputable
+import           Polysemy
+import           Polysemy.Input
+import           Polysemy.State
+import           Polysemy.Trace
+import           Sem.Ghcid
+import           Sem.HoleType
+import           SrcLoc
+import qualified Brick.Types as T
+
+
+
+
+
+pprToString :: DynFlags -> SDoc -> String
+pprToString d = pprDebugAndThen d id empty
 
 
 parseModuleFromString
@@ -26,23 +38,57 @@ parseModuleFromString fp s = ghcWrapper $ do
   return $ fmap (dflags, ) $ parseModuleFromStringInternal dflags fp s
 
 
+data Data = Data
+  { dIsEditing :: Bool
+  , dCurrentGoal :: String
+  }
+
+defData :: Data
+defData = Data False ""
+
+
+
+app
+    :: Members '[Input DynFlags, HoleType, State (Located (HsModule GhcPs))] r
+    => M.App Data e () (Sem r)
+app = M.App
+  { M.appDraw = \st -> [str $ dCurrentGoal st]
+  , M.appStartEvent = pure
+  , M.appHandleEvent = appEvent
+  , M.appAttrMap = const $ attrMap V.defAttr []
+  , M.appChooseCursor = M.neverShowCursor
+  }
+
+appEvent
+    :: Members '[Input DynFlags, HoleType, State (Located (HsModule GhcPs))] r
+    => Data
+    -> T.BrickEvent () e
+    -> T.EventM () (Sem r) (T.Next (Sem r) Data)
+appEvent st (T.VtyEvent (V.EvKey (V.KChar 's') [])) = M.suspendAndResume $ do
+  modify doSolve
+  dflags <- input
+  t <- holeType
+  pure $ st
+    { dCurrentGoal = pprToString dflags $ ppr t
+    }
+appEvent st (T.VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt st
+appEvent st (T.VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt st
+appEvent st (T.VtyEvent (V.EvKey V.KEsc [])) = M.halt st
+appEvent st _ = M.continue st
+
+
 main :: IO ()
 main = do
   contents <- readFile "src/Test.hs"
-  Right (dflags, (_anns, z)) <- parseModuleFromString "src/Lib.hs" contents
+  Right (dflags, (anns, z)) <- parseModuleFromString "src/Lib.hs" contents
 
 
-  t <- runM . traceToIO
-            . runInputConst dflags
-            . runInputConst _anns
-            . evalState z
-            . runGhcid
-            . holeTypeToGhcid
-            $ do
-          start <- holeType
-          modify $ doSolve
-          end <- holeType
-          pure (start, end)
-
-  pprTraceM "type of hole" $ ppr t
+  runM . traceToIO
+       . runInputConst dflags
+       . runInputConst anns
+       . evalState z
+       . runGhcid
+       . holeTypeToGhcid
+       $ do
+    void $ defaultMain app defData
 

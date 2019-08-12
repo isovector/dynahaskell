@@ -32,6 +32,7 @@ dependencies:
 - polysemy-plugin
 - chiasma
 - ghcid
+- vty
 
 default-extensions:
 - FlexibleContexts
