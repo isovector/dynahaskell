@@ -2,24 +2,16 @@
 
 module Lib where
 
-import Data.Map ((\\))
-import Data.Foldable
+import GHC (SrcSpan, DynFlags)
 import GHC.Generics
 import Generics.SYB hiding (Generic)
 import HsSyn
-import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import Language.Haskell.GHC.ExactPrint
-import Language.Haskell.GHC.ExactPrint.Transform
-import Language.Haskell.GHC.ExactPrint.Types (DeltaPos (..), KeywordId (..))
-import GHC (SrcSpan, DynFlags, extensions, AnnKeywordId (..))
+import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import MarkerUtils
 import Markers
-import OccName
-import Outputable
-import RdrName
-import SrcLoc
-import Control.Lens
 import Printers
+import SrcLoc
 
 
 parseModuleFromString
@@ -45,28 +37,10 @@ findInProgress = filter (everything (||) $ mkQ False $ matchOcc "underway")
 main :: IO ()
 main = do
   contents <- readFile "src/Test.hs"
-  Right (dflags, (_anns, z)) <- parseModuleFromString "src/Lib.hs" contents
-  let Right(_anns2, expr) = parseExpr dflags "src/Lib.hs" "solve"
-  pprTraceM "parsed" $ ppr _anns
+  Right (_dflags, (_anns, z)) <- parseModuleFromString "src/Lib.hs" contents
 
   let z' = doSolve z
       (z'', anns) = foo _anns z'
 
-  putStrLn "\n\n\n-----------------------\n\n\n"
-  pprTraceM "parsed2" $ ppr $ _anns
-
   putStrLn $ exactPrint z'' anns
-  -- putStrLn "\n\n\n-----------------------\n\n\n"
-
---   pprTraceM "parsed" $ ppr anns
-
-
---   pprTraceM "" $ ppr z''
-
-
---   let inprog = findInProgress $ hsmodDecls a
---   for_ inprog $ \p -> do
---     pprTraceM "found" $ ppr p
-
---     pprTraceM "replaced!" . ppr $ doSolve p
 
