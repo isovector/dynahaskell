@@ -27,6 +27,7 @@ dependencies:
 - syb
 - lens
 - generic-lens
+- containers
 
 default-extensions:
 - FlexibleContexts

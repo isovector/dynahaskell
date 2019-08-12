@@ -24,7 +24,8 @@ pattern Underway i activity <-
           (L _ (HsPar _ (L _ activity))) where
   Underway i activity =
     HsApp NoExt (noLoc (HsApp NoExt (noLoc ( HsVar NoExt (noLoc (Unqual underwayOcc))))
-                (noLoc (HsOverLit NoExt (OverLit NoExt (HsIntegral (IL NoSourceText False i)) undefined)))))
+                (noLoc (HsOverLit NoExt (OverLit NoExt (HsIntegral (IL NoSourceText False i))
+                      $ HsLit NoExt (HsInt NoExt (IL NoSourceText False i)))))))
           (noLoc (HsPar NoExt (noLoc activity))) where
 
 nowUnderway :: Data a => Traversal' a (HsExpr GhcPs)
