@@ -3,4 +3,7 @@ module Test where
 import Markers
 
 test :: Int
-test = underway 0 (solve + 5)
+test =
+  case underway 0 solve $ id of
+    True -> 5
+    False -> 0

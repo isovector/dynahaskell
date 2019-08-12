@@ -1,12 +1,8 @@
-resolver: lts-13.0
+resolver: lts-14.0
 
 packages:
 - .
 
 extra-deps:
-- brick-0.47.1
-- config-ini-0.2.4.0
-- data-clist-0.1.2.3
-- text-zipper-0.10.1
-- word-wrap-0.4.1
-
+- chiasma-0.1.0.0@sha256:0d95d24746716430eca2d54755384e7f0da8c6cac4f4171705f47ff7c907ba87,2472
+- posix-pty-0.2.1.1@sha256:f1e54f10c49d9f27dba33539391659d2daa4874badc1554ffc6c25b329ef1db6,2161

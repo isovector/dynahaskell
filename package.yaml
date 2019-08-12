@@ -28,6 +28,10 @@ dependencies:
 - lens
 - generic-lens
 - containers
+- polysemy
+- polysemy-plugin
+- chiasma
+- ghcid
 
 default-extensions:
 - FlexibleContexts
