@@ -19,6 +19,7 @@ import Outputable
 import RdrName
 import SrcLoc
 import Control.Lens
+import Printers
 
 
 parseModuleFromString
@@ -49,18 +50,10 @@ main = do
   pprTraceM "parsed" $ ppr _anns
 
   let z' = doSolve z
-
-      (z'', (anns, _), _) = runTransform _anns $ everywhereM (mkM mkSrc) z'
-      mkSrc :: Located RdrName -> Transform (Located RdrName)
-      mkSrc (L loc z2) | loc == noSrcSpan = do
-        srcspan <- uniqueSrcSpanT
-        let l' = L srcspan z2
-        addSimpleAnnT l' (DP (0, 0)) [(G AnnVal, DP (0,1))]
-        pure $ l'
-      mkSrc z2 = pure z2
+      (z'', anns) = foo _anns z'
 
   putStrLn "\n\n\n-----------------------\n\n\n"
-  pprTraceM "parsed2" $ ppr $ anns \\ _anns
+  pprTraceM "parsed2" $ ppr $ _anns
 
   putStrLn $ exactPrint z'' anns
   -- putStrLn "\n\n\n-----------------------\n\n\n"
