@@ -23,6 +23,7 @@ foo _anns z =
     mkSrc a = pure a
 
     mkLSrc :: LHsExpr GhcPs -> Transform (LHsExpr GhcPs)
+    mkLSrc x@(L _ (Underway _ _)) = addAnns 1 [G AnnOpenP, G AnnCloseP] $ HsPar NoExt x
     mkLSrc (L loc x@(HsLit _ _)) | loc == noSrcSpan = addAnnVal 1 x
     mkLSrc (L loc x@(HsOverLit _ _)) | loc == noSrcSpan = addAnnVal 1 x
     mkLSrc (L loc x@(HsPar _ _)) | loc == noSrcSpan = addAnns 1 [G AnnOpenP, G AnnCloseP] x
