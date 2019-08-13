@@ -64,7 +64,10 @@ toSolveHole :: HsExpr GhcPs
 toSolveHole = HsUnboundVar NoExt (TrueExprHole $ mkVarOcc "_to_solve")
 
 doSolve :: Data a => a -> a
-doSolve p = everywhere (mkT succUnderway) p & nextSolve .~ Underway 0 toSolveHole
+doSolve p =
+  case p ^? nextSolve of
+    Just _ -> everywhere (mkT succUnderway) p & nextSolve .~ Underway 0 toSolveHole
+    Nothing -> p
 
 
 
