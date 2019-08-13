@@ -9,6 +9,7 @@ import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Types (DeltaPos (..), KeywordId (..))
 import RdrName
 import SrcLoc
+import MarkerUtils
 
 
 foo :: Data a => Anns -> a -> (a, Anns)
@@ -40,4 +41,12 @@ addAnns i anns z = do
 
 addAnnVal :: (Monad m, Data b) => Int -> b -> TransformT m (Located b)
 addAnnVal i = addAnns i [G AnnVal]
+
+
+
+hideMarkers :: Data a => a -> a
+hideMarkers = everywhere $ mkT hide
+  where
+    hide (Underway _ z) = z
+    hide z = z
 

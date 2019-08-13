@@ -2,14 +2,15 @@
 
 module Lib where
 
-import Control.Lens
 import           Brick
 import qualified Brick.Main as M
 import qualified Brick.Types as T
 import           Brick.Widgets.Border
 import           Brick.Widgets.Border.Style
 import           Brick.Widgets.Edit
+import           Control.Lens
 import           Control.Monad
+import           DynFlags (unsafeGlobalDynFlags)
 import           GHC (SrcSpan, DynFlags)
 import qualified Graphics.Vty as V
 import           HsSyn
@@ -21,6 +22,7 @@ import           Polysemy
 import           Polysemy.Input
 import           Polysemy.State
 import           Polysemy.Trace
+import           Printers
 import           Sem.Ghcid
 import           Sem.HoleType
 import           SrcLoc
@@ -48,13 +50,16 @@ data Names = Editor
 
 data Data = Data
   { dIsEditing :: Bool
-  , dCurrentGoal :: String
-  , dContext :: String
+  , dCurrentGoal :: Maybe (HsType GhcPs)
+  , dContext :: Maybe (HsExpr GhcPs)
   , dEditor :: Editor String Names
+  , dFlags  :: DynFlags
   }
 
+
 defData :: Data
-defData = Data False "" "" $ editor Editor (Just 1) ""
+defData = Data False Nothing Nothing (editor Editor (Just 1) "") unsafeGlobalDynFlags
+
 
 
 drawUi :: Data -> [Widget Names]
@@ -63,9 +68,9 @@ drawUi st
   . withBorderStyle unicode
   . borderWithLabel (str "The Glorious DynaHaskell Editor")
   $ vBox
-    [ str $ dCurrentGoal st
+    [ padAll 1 $ str $ "  _to_solve  ::" ++ maybe "error" (pprToString (dFlags st) . ppr) (dCurrentGoal st)
     , hBorder
-    , str $ dContext st
+    , padAll 1 $ str $ maybe "error" (pprToString (dFlags st) . ppr . hideMarkers) $ dContext st
     , hBorder
     ]
 
@@ -90,11 +95,10 @@ appEvent st (T.VtyEvent (V.EvKey (V.KChar 's') [])) =
   M.performAction $ do
     modify doSolve
     res <- get
-    dflags <- input
     t <- holeType
     pure $ st
-      { dCurrentGoal = pprToString dflags $ ppr t
-      , dContext = pprToString dflags $ ppr $ res ^? prevUnderway 1
+      { dCurrentGoal = t
+      , dContext = res ^? prevUnderway 1
       }
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt st
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt st
