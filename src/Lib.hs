@@ -53,13 +53,15 @@ data Data = Data
   { dIsEditing :: Bool
   , dCurrentGoal :: Maybe (HsType GhcPs)
   , dContext :: Maybe (HsExpr GhcPs)
+  , dEverything :: Maybe (HsModule GhcPs)
   , dEditor :: Editor String Names
   , dFlags  :: DynFlags
+  , dAnns :: Anns
   }
 
 
 defData :: Data
-defData = Data False Nothing Nothing resetEditor unsafeGlobalDynFlags
+defData = Data False Nothing Nothing Nothing resetEditor unsafeGlobalDynFlags undefined
 
 resetEditor :: Editor String Names
 resetEditor = editor Editor (Just 1) ""
@@ -75,12 +77,14 @@ drawUi st
     , hBorder
     , padAll 1 $ str $ maybe "error" (pprToString (dFlags st) . ppr . deParen . hideMarkers) $ dContext st
     , hBorder
+    , padAll 1 $ str $ maybe "error" (uncurry exactPrint . foo (dAnns st) . noLoc) $ dEverything st
+    , hBorder
     , padAll 1 $ renderEditor (str . concat) (dIsEditing st) (dEditor st)
     ]
 
 
 app
-    :: Members '[Input DynFlags, HoleType, State (Located (HsModule GhcPs)), FillHole] r
+    :: Members '[Input DynFlags, HoleType, State (Located (HsModule GhcPs)), FillHole, State Anns] r
     => M.App Data e Names (Sem r)
 app = M.App
   { M.appDraw = drawUi
@@ -91,7 +95,7 @@ app = M.App
   }
 
 appEvent
-    :: Members '[Input DynFlags, HoleType, State (Located (HsModule GhcPs)), FillHole] r
+    :: Members '[Input DynFlags, HoleType, State (Located (HsModule GhcPs)), FillHole, State Anns] r
     => Data
     -> T.BrickEvent Names e
     -> T.EventM Names (Sem r) (T.Next (Sem r) Data)
@@ -100,6 +104,7 @@ appEvent st (T.VtyEvent (V.EvKey (V.KEnter) [])) = do
   M.performAction $ do
     fillHole (concat c) >>= \case
       FillOK -> do
+        modify @(Located (HsModule GhcPs)) finish
         st' <- updateState st
         pure $ st'
           { dIsEditing = False
@@ -118,9 +123,13 @@ appEvent st (T.VtyEvent e) | dIsEditing st = do
     }
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'e') [])) =
   M.continue $ st { dIsEditing = True }
+appEvent st (T.VtyEvent (V.EvKey (V.KChar 'f') [])) =
+  M.performAction $ do
+    modify @(Located (HsModule GhcPs)) finish
+    updateState st
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 's') [])) =
   M.performAction $ do
-    modify doSolve
+    modify @(Located (HsModule GhcPs)) doSolve
     updateState st
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt st
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt st
@@ -128,13 +137,16 @@ appEvent st (T.VtyEvent (V.EvKey V.KEsc [])) = M.halt st
 appEvent st _ = M.continue st
 
 
-updateState :: Members '[HoleType, State (Located (HsModule GhcPs))] r => Data -> Sem r Data
+updateState :: Members '[HoleType, State Anns, State (Located (HsModule GhcPs))] r => Data -> Sem r Data
 updateState st = do
-  res <- get
+  res <- get @(Located (HsModule GhcPs))
   t <- holeType
+  anns <- get
   pure $ st
     { dCurrentGoal = t
     , dContext = res ^? prevUnderway 1
+    , dEverything = Just $ unLoc res
+    , dAnns = anns
     }
 
 
@@ -147,12 +159,12 @@ main = do
 
   runM . traceToIO
        . runInputConst dflags
-       . runInputConst anns
        . evalState anns
+       . runInputSem @Anns get
        . evalState z
        . runGhcid
        . runFillHole
        . holeTypeToGhcid
        $ do
-    void $ defaultMain app defData
+    void $ defaultMain app $ defData { dEverything = Just $ unLoc z, dAnns = anns }
 

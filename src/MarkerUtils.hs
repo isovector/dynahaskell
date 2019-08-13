@@ -2,6 +2,8 @@
 
 module MarkerUtils where
 
+import Data.Maybe
+import Data.Foldable
 import BasicTypes
 import Generics.SYB hiding (Generic)
 import GHC.Generics
@@ -61,7 +63,7 @@ nextSolve :: Data a => Traversal' a (HsExpr GhcPs)
 nextSolve = locate (matchOcc "solve")
 
 toSolveHole :: HsExpr GhcPs
-toSolveHole = HsUnboundVar NoExt (TrueExprHole $ mkVarOcc "_to_solve")
+toSolveHole = HsVar NoExt $ noLoc $ Unqual $ mkVarOcc "_to_solve"
 
 doSolve :: Data a => a -> a
 doSolve p =
@@ -86,5 +88,11 @@ predUnderway a = a
 finish :: Data a => a -> a
 finish a = a & nowUnderwayC %~ unUnderway & everywhere (mkT predUnderway)
 
+isFinished :: Data a => a -> Bool
+isFinished a =
+  isNothing $ asum
+    [ a ^? nowUnderway . locate (matchOcc "todo")
+    , a ^? nowUnderway . locate (matchOcc "solve")
+    ]
 
 
