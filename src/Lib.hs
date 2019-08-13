@@ -1,4 +1,5 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE TupleSections   #-}
 
 module Lib where
 
@@ -10,7 +11,6 @@ import           Brick.Widgets.Border.Style
 import           Brick.Widgets.Edit
 import           Control.Lens
 import           Control.Monad
-import           DynFlags (unsafeGlobalDynFlags)
 import           GHC (SrcSpan, DynFlags)
 import qualified Graphics.Vty as V
 import           HsSyn
@@ -52,39 +52,49 @@ data Names = Editor
 data Data = Data
   { dIsEditing :: Bool
   , dCurrentGoal :: Maybe (HsType GhcPs)
-  , dContext :: Maybe (HsExpr GhcPs)
-  , dEverything :: Maybe (HsModule GhcPs)
   , dEditor :: Editor String Names
-  , dFlags  :: DynFlags
-  , dAnns :: Anns
   }
 
 
 defData :: Data
-defData = Data False Nothing Nothing Nothing resetEditor unsafeGlobalDynFlags undefined
+defData = Data False Nothing resetEditor
 
 resetEditor :: Editor String Names
 resetEditor = editor Editor (Just 1) ""
 
 
-drawUi :: Data -> [Widget Names]
-drawUi st
-  = pure
-  . withBorderStyle unicode
-  . borderWithLabel (str "The Glorious DynaHaskell Editor")
-  $ vBox
-    [ padAll 1 $ str $ "  _to_solve  ::" ++ maybe "error" (pprToString (dFlags st) . ppr) (dCurrentGoal st)
+type Mems r =
+  Members
+    '[Input DynFlags
+     , HoleType
+     , State (Located (HsModule GhcPs))
+     , FillHole
+     , State Anns
+     ] r
+
+
+drawUi :: Mems r => Data -> Sem r [Widget Names]
+drawUi st = do
+  everything <- get @(Located (HsModule GhcPs))
+  anns <- get
+  dflags <- input
+
+  pure . pure
+       . withBorderStyle unicode
+       . borderWithLabel (str "The Glorious DynaHaskell Editor")
+       $ vBox
+    [ padAll 1 $ str $ "  _to_solve  ::" ++ maybe "error" (pprToString dflags . ppr) (dCurrentGoal st)
     , hBorder
-    , padAll 1 $ str $ maybe "error" (pprToString (dFlags st) . ppr . deParen . hideMarkers) $ dContext st
+    , padAll 1 $ str $ maybe "" (pprToString dflags . ppr . deParen . hideMarkers) $ everything ^? prevUnderway 1
     , hBorder
-    , padAll 1 $ str $ maybe "error" (uncurry exactPrint . foo (dAnns st) . noLoc) $ dEverything st
+    , padAll 1 . str . uncurry exactPrint $ foo anns everything
     , hBorder
     , padAll 1 $ renderEditor (str . concat) (dIsEditing st) (dEditor st)
     ]
 
 
 app
-    :: Members '[Input DynFlags, HoleType, State (Located (HsModule GhcPs)), FillHole, State Anns] r
+    :: Mems r
     => M.App Data e Names (Sem r)
 app = M.App
   { M.appDraw = drawUi
@@ -95,7 +105,7 @@ app = M.App
   }
 
 appEvent
-    :: Members '[Input DynFlags, HoleType, State (Located (HsModule GhcPs)), FillHole, State Anns] r
+    :: Mems r
     => Data
     -> T.BrickEvent Names e
     -> T.EventM Names (Sem r) (T.Next (Sem r) Data)
@@ -137,16 +147,11 @@ appEvent st (T.VtyEvent (V.EvKey V.KEsc [])) = M.halt st
 appEvent st _ = M.continue st
 
 
-updateState :: Members '[HoleType, State Anns, State (Located (HsModule GhcPs))] r => Data -> Sem r Data
+updateState :: Mems r => Data -> Sem r Data
 updateState st = do
-  res <- get @(Located (HsModule GhcPs))
   t <- holeType
-  anns <- get
   pure $ st
     { dCurrentGoal = t
-    , dContext = res ^? prevUnderway 1
-    , dEverything = Just $ unLoc res
-    , dAnns = anns
     }
 
 
@@ -166,5 +171,5 @@ main = do
        . runFillHole
        . holeTypeToGhcid
        $ do
-    void $ defaultMain app $ defData { dEverything = Just $ unLoc z, dAnns = anns }
+    void $ defaultMain app $ defData
 
