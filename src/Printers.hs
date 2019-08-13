@@ -45,8 +45,12 @@ addAnnVal i = addAnns i [G AnnVal]
 
 
 hideMarkers :: Data a => a -> a
-hideMarkers = everywhere $ mkT hide
+hideMarkers = everywhere (mkT hide)
   where
     hide (Underway _ z) = z
     hide z = z
+
+deParen :: HsExpr GhcPs -> HsExpr GhcPs
+deParen (HsPar _ (L _ a)) = deParen a
+deParen a = a
 
