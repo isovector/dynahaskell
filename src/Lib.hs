@@ -12,9 +12,8 @@ import           Brick.Widgets.Edit
 import           Control.Lens
 import           Control.Monad
 import           Data.Maybe
-import           GHC (SrcSpan, DynFlags)
+import           GHC (SrcSpan)
 import qualified Graphics.Vty as V
-import           HsSyn
 import           Language.Haskell.GHC.ExactPrint
 import           Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import           MarkerUtils
@@ -27,9 +26,7 @@ import           Printers
 import           Sem.FillHole
 import           Sem.Ghcid
 import           Sem.Typecheck
-import           SrcLoc
-
-
+import           Types
 
 
 
@@ -40,7 +37,7 @@ pprToString d = pprDebugAndThen d id empty
 parseModuleFromString
   :: FilePath
   -> String
-  -> IO (Either (GHC.SrcSpan, String) (DynFlags, (Anns, Located (HsModule GhcPs))))
+  -> IO (Either (SrcSpan, String) (DynFlags, (Anns, LModule)))
 parseModuleFromString fp s = ghcWrapper $ do
   dflags <- initDynFlagsPure fp s
   return $ fmap (dflags, ) $ parseModuleFromStringInternal dflags fp s
@@ -67,7 +64,7 @@ type Mems r =
   Members
     '[ Input DynFlags
      , Typecheck
-     , State (Located (HsModule GhcPs))
+     , State LModule
      , FillHole
      , State Anns
      , Trace
@@ -76,7 +73,7 @@ type Mems r =
 
 drawUi :: Mems r => Data -> Sem r [Widget Names]
 drawUi st = do
-  everything <- get @(Located (HsModule GhcPs))
+  everything <- get @LModule
   anns <- get
   dflags <- input
 
@@ -124,7 +121,7 @@ appEvent st (T.VtyEvent (V.EvKey (V.KEnter) [])) = do
   M.performAction $ do
     fillHole (concat c) >>= \case
       FillOK -> do
-        modify @(Located (HsModule GhcPs)) finish
+        modify @LModule finish
       BadType -> error "badtype"
       BadParse -> pure ()
     pure $ st
@@ -138,7 +135,7 @@ appEvent st (T.VtyEvent e) | dIsEditing st = do
     }
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'f') [])) =
   M.performAction $ do
-    modify @(Located (HsModule GhcPs)) finish
+    modify @LModule finish
     pure st
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 's') [])) =
   M.performAction $ do
@@ -153,7 +150,7 @@ appEvent st _ = M.continue st
 runSolve :: Mems r => Sem r ()
 runSolve = do
   ty <- typecheck nextSolve
-  modify @(Located (HsModule GhcPs)) $ doSolve ty
+  modify @LModule $ doSolve ty
 
 
 

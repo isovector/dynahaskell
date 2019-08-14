@@ -18,6 +18,13 @@ packages:
       sha256: d8901f7c8c42c767092262da42e1ff1911151310f4cd87f1ee278d168121ecee
   original:
     hackage: posix-pty-0.2.1.1@sha256:f1e54f10c49d9f27dba33539391659d2daa4874badc1554ffc6c25b329ef1db6,2161
+- completed:
+    hackage: refinery-0.1.0.0@sha256:500db20b0581be7f0a1d8e31f3b8e507e92777596e06dde8c986564037d78fd2,1629
+    pantry-tree:
+      size: 504
+      sha256: ccff12462041b2cebdb63c4430433baac11ac8d8e56e3ae0f0f17b4ab820bda9
+  original:
+    hackage: refinery-0.1.0.0
 snapshots:
 - completed:
     size: 523443

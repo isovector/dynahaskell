@@ -3,11 +3,10 @@
 module Printers where
 
 import Generics.SYB hiding (Generic)
-import HsSyn
 import Language.Haskell.GHC.ExactPrint
-import SrcLoc
-import MarkerUtils
 import Language.Haskell.GHC.ExactPrint.Annotater
+import MarkerUtils
+import Types
 
 
 
@@ -22,7 +21,7 @@ hideMarkers = everywhere (mkT hide)
     hide (Underway _ _ z) = z
     hide z = z
 
-deParen :: HsExpr GhcPs -> HsExpr GhcPs
+deParen :: Expr -> Expr
 deParen (HsPar _ (L _ a)) = deParen a
 deParen a = a
 

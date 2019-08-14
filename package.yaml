@@ -30,9 +30,11 @@ dependencies:
 - containers
 - polysemy
 - polysemy-plugin
+- polysemy-zoo
 - chiasma
 - ghcid
 - vty
+- refinery
 
 default-extensions:
 - FlexibleContexts

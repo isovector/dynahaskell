@@ -1,25 +1,19 @@
-{-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE RankNTypes #-}
 
 module MarkerUtils where
 
 import Data.Maybe
 import Data.Foldable
-import BasicTypes
 import Generics.SYB hiding (Generic)
 import GHC.Generics
-import HsSyn
-import OccName
-import RdrName
-import SrcLoc
 import Control.Lens
-import Data.Generics.Product.Positions
-import Data.Generics.Sum.Constructors
 import Data.Data.Lens
 import GenericOrphans ()
 import MarkerLenses
+import Types
 
 
-pattern Underway :: Integer -> HsType GhcPs -> HsExpr GhcPs -> HsExpr GhcPs
+pattern Underway :: Integer -> Type -> Expr -> Expr
 pattern Underway i ty activity <-
   HsPar _ (L _ ((HsApp _ (L _ (HsApp _ (L _ (
 
@@ -39,10 +33,10 @@ pattern Underway i ty activity <-
                       $ HsLit NoExt (HsInt NoExt (IL (SourceText $ show i) False i)))))))
           (noLoc (HsPar NoExt (noLoc activity))) where
 
-nowUnderway :: Data a => Traversal' a (HsExpr GhcPs)
+nowUnderway :: Data a => Traversal' a Expr
 nowUnderway = prevUnderway 0
 
-prevUnderway :: Data a => Integer -> Traversal' a (HsExpr GhcPs)
+prevUnderway :: Data a => Integer -> Traversal' a Expr
 prevUnderway n
   = prevUnderwayC n
   . _Ctor' @"HsPar"
@@ -52,7 +46,7 @@ prevUnderway n
   . position @3
   . loc
 
-underwayType :: Traversal' (HsExpr GhcPs) (HsType GhcPs)
+underwayType :: Traversal' Expr Type
 underwayType
   = _Ctor' @"HsPar"
   . position @2
@@ -69,16 +63,16 @@ underwayType
   . position @2
   . loc
 
-nowUnderwayC :: Data a => Traversal' a (HsExpr GhcPs)
+nowUnderwayC :: Data a => Traversal' a Expr
 nowUnderwayC = prevUnderwayC 0
 
-prevUnderwayC :: Data a => Integer -> Traversal' a (HsExpr GhcPs)
+prevUnderwayC :: Data a => Integer -> Traversal' a Expr
 prevUnderwayC n = locate isUnderway
  where
    isUnderway (Underway n' _ _) = n == n'
    isUnderway _ = False
 
-matchOcc :: String -> HsExpr GhcPs -> Bool
+matchOcc :: String -> Expr -> Bool
 matchOcc occ (HsVar _ (L _ (Unqual occ'))) = mkVarOcc occ == occ'
 matchOcc _ _ = False
 
@@ -88,13 +82,13 @@ locate f = biplate . deepOf uniplate (filtered f)
 underwayOcc :: OccName
 underwayOcc = mkVarOcc "underway"
 
-nextSolve :: Data a => Traversal' a (HsExpr GhcPs)
+nextSolve :: Data a => Traversal' a Expr
 nextSolve = locate (matchOcc "solve")
 
-mkHole :: String -> HsExpr GhcPs
+mkHole :: String -> Expr
 mkHole = HsVar NoExt . noLoc . Unqual . mkVarOcc
 
-doSolve :: Data a => HsType GhcPs -> a -> a
+doSolve :: Data a => Type -> a -> a
 doSolve ty p =
   case p ^? nextSolve of
     Just _ -> everywhere (mkT succUnderway) p & nextSolve .~ Underway 0 ty (mkHole "_to_solve")
@@ -102,15 +96,15 @@ doSolve ty p =
 
 
 
-unUnderway :: HsExpr GhcPs -> HsExpr GhcPs
+unUnderway :: Expr -> Expr
 unUnderway (Underway 0 _ z) = z
 unUnderway a = a
 
-succUnderway :: HsExpr GhcPs -> HsExpr GhcPs
+succUnderway :: Expr -> Expr
 succUnderway (Underway n t z) = Underway (n + 1) t z
 succUnderway a = a
 
-predUnderway :: HsExpr GhcPs -> HsExpr GhcPs
+predUnderway :: Expr -> Expr
 predUnderway (Underway n t z) = Underway (n - 1) t z
 predUnderway a = a
 

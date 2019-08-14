@@ -8,8 +8,6 @@ import Control.Monad
 import Data.Bifunctor
 import Data.List
 import Data.Maybe
-import GHC
-import GHC (DynFlags)
 import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import MarkerUtils
@@ -19,11 +17,12 @@ import Polysemy.State
 import Polysemy.Trace
 import Printers
 import Sem.Ghcid
+import Types
 
 
 data Typecheck m a where
-  Typecheck :: Traversal' (Located (HsModule GhcPs)) (HsExpr GhcPs)
-            -> Typecheck m (HsType GhcPs)
+  Typecheck :: Traversal' LModule Expr
+            -> Typecheck m Type
 
 makeSem ''Typecheck
 
@@ -31,7 +30,7 @@ makeSem ''Typecheck
 
 holeTypeToGhcid
     :: Members '[ Ghcid
-                , State (Located (HsModule GhcPs))
+                , State LModule
                 , Input Anns
                 , Input DynFlags
                 , Trace
