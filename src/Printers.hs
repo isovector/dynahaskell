@@ -2,15 +2,11 @@
 
 module Printers where
 
-import GHC (AnnKeywordId (..))
 import Generics.SYB hiding (Generic)
 import HsSyn
 import Language.Haskell.GHC.ExactPrint
-import Language.Haskell.GHC.ExactPrint.Types (DeltaPos (..), KeywordId (..))
-import RdrName
 import SrcLoc
 import MarkerUtils
-import Language.Haskell.GHC.ExactPrint.Pretty
 import Language.Haskell.GHC.ExactPrint.Annotater
 
 
