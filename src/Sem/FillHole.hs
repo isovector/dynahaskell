@@ -2,13 +2,14 @@
 
 module Sem.FillHole where
 
+import Data.Bool
 import MarkerUtils
 import Control.Lens
 import Polysemy
 import Polysemy.State
 import Polysemy.Input
 import Sem.Ghcid
-import GHC (HsExpr, HsModule, Located, GhcPs, DynFlags, unLoc)
+import GHC (HsExpr (..), HsModule, Located, GhcPs, DynFlags, unLoc, NoExt (..), noLoc)
 import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 
@@ -29,11 +30,13 @@ runFillHole
     -> Sem r a
 runFillHole = interpret \case
   FillHole unparsed -> do
+    let needs_parens = elem ' ' unparsed
     dflags <- input
     case parseExpr dflags "fillHole" unparsed of
       Left _ -> pure BadParse
       Right (anns, expr) -> do
-        modify @(Located (HsModule GhcPs)) $ nowUnderwayC .~ unLoc expr
+        modify @(Located (HsModule GhcPs)) $
+          nowUnderwayC .~ unLoc (bool id (noLoc . HsPar NoExt) needs_parens expr)
         modify $ mappend anns
         pure FillOK
 

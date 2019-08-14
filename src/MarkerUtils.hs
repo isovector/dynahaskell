@@ -21,11 +21,12 @@ import MarkerLenses
 
 pattern Underway :: Integer -> HsExpr GhcPs -> HsExpr GhcPs
 pattern Underway i activity <-
-  HsApp _ (L _ (HsApp _ (L _ ( HsVar _ (L _ (Unqual ((== underwayOcc) -> True)))))
+  HsPar _ (L _ ((HsApp _ (L _ (HsApp _ (L _ ( HsVar _ (L _ (Unqual ((== underwayOcc) -> True)))))
                         (L _ (HsOverLit _ (OverLit _ (HsIntegral (IL _ False i)) _)))))
-          (L _ (HsPar _ (L _ activity))) where
+          (L _ (HsPar _ (L _ activity)))))) where
   Underway i activity =
-    HsApp NoExt (noLoc (HsApp NoExt (noLoc ( HsVar NoExt (noLoc (Unqual underwayOcc))))
+    HsPar NoExt $ noLoc $
+      HsApp NoExt (noLoc (HsApp NoExt (noLoc ( HsVar NoExt (noLoc (Unqual underwayOcc))))
                 (noLoc (HsOverLit NoExt (OverLit NoExt (HsIntegral (IL (SourceText $ show i) False i))
                       $ HsLit NoExt (HsInt NoExt (IL NoSourceText False i)))))))
           (noLoc (HsPar NoExt (noLoc activity))) where

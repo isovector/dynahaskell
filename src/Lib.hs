@@ -87,7 +87,7 @@ drawUi st = do
     , hBorder
     , padAll 1 $ str $ maybe "" (pprToString dflags . ppr . deParen . hideMarkers) $ everything ^? prevUnderway 1
     , hBorder
-    , padAll 1 . str . uncurry exactPrint $ foo anns everything
+    , padAll 1 . str . uncurry exactPrint $ foo anns $ hideMarkers everything
     , hBorder
     , padAll 1 $ renderEditor (str . concat) (dIsEditing st) (dEditor st)
     ]
@@ -115,17 +115,12 @@ appEvent st (T.VtyEvent (V.EvKey (V.KEnter) [])) = do
     fillHole (concat c) >>= \case
       FillOK -> do
         modify @(Located (HsModule GhcPs)) finish
-        st' <- updateState st
-        pure $ st'
-          { dIsEditing = False
-          , dEditor = resetEditor
-          }
-      BadParse ->
-        pure $ st
-          { dIsEditing = False
-          , dEditor = resetEditor
-          }
       BadType -> error "badtype"
+      BadParse -> pure ()
+    pure $ st
+      { dIsEditing = False
+      , dEditor = resetEditor
+      }
 appEvent st (T.VtyEvent e) | dIsEditing st = do
   edit' <- handleEditorEvent e (dEditor st)
   M.continue $ st
@@ -136,7 +131,7 @@ appEvent st (T.VtyEvent (V.EvKey (V.KChar 'e') [])) =
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'f') [])) =
   M.performAction $ do
     modify @(Located (HsModule GhcPs)) finish
-    updateState st
+    pure st
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 's') [])) =
   M.performAction $ do
     modify @(Located (HsModule GhcPs)) doSolve
