@@ -7,6 +7,7 @@ import GHC.Generics
 import HsSyn
 import SrcLoc
 
+deriving instance Generic (HsWildCardBndrs GhcPs t)
 deriving instance Generic (HsExpr GhcPs)
 deriving instance Generic (GenLocated l e)
 deriving instance Generic (HsOverLit GhcPs)

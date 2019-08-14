@@ -19,7 +19,7 @@ foo anns z = (z, addAnnotationsForPretty [] z anns)
 hideMarkers :: Data a => a -> a
 hideMarkers = everywhere (mkT hide)
   where
-    hide (Underway _ z) = z
+    hide (Underway _ _ z) = z
     hide z = z
 
 deParen :: HsExpr GhcPs -> HsExpr GhcPs

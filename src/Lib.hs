@@ -11,6 +11,7 @@ import           Brick.Widgets.Border.Style
 import           Brick.Widgets.Edit
 import           Control.Lens
 import           Control.Monad
+import           Data.Maybe
 import           GHC (SrcSpan, DynFlags)
 import qualified Graphics.Vty as V
 import           HsSyn
@@ -51,13 +52,12 @@ data Names = Editor
 
 data Data = Data
   { dIsEditing :: Bool
-  , dCurrentGoal :: Maybe (HsType GhcPs)
   , dEditor :: Editor String Names
   }
 
 
 defData :: Data
-defData = Data False Nothing resetEditor
+defData = Data False resetEditor
 
 resetEditor :: Editor String Names
 resetEditor = editor Editor (Just 1) ""
@@ -70,6 +70,7 @@ type Mems r =
      , State (Located (HsModule GhcPs))
      , FillHole
      , State Anns
+     , Trace
      ] r
 
 
@@ -83,13 +84,22 @@ drawUi st = do
        . withBorderStyle unicode
        . borderWithLabel (str "The Glorious DynaHaskell Editor")
        $ vBox
-    [ padAll 1 $ str $ "  _to_solve  ::" ++ maybe "error" (pprToString dflags . ppr) (dCurrentGoal st)
+    [ padAll 1 . str
+               . mappend "  _to_solve  ::"
+               . maybe "  error" (pprToString dflags . ppr)
+               $ everything ^? nowUnderwayC . underwayType
     , hBorder
-    , padAll 1 $ str $ maybe "" (pprToString dflags . ppr . deParen . hideMarkers) $ everything ^? prevUnderway 1
+    , padAll 1 . str
+               . maybe "" (pprToString dflags . ppr . deParen . hideMarkers)
+               $ everything ^? prevUnderway 1
     , hBorder
-    , padAll 1 . str . uncurry exactPrint $ foo anns $ hideMarkers everything
+    , padAll 1 . str
+               . uncurry exactPrint
+               . foo anns
+               $ hideMarkers everything
     , hBorder
-    , padAll 1 $ renderEditor (str . concat) (dIsEditing st) (dEditor st)
+    , padAll 1 . renderEditor (str . concat) (dIsEditing st)
+               $ dEditor st
     ]
 
 
@@ -101,7 +111,7 @@ app = M.App
   , M.appStartEvent = pure
   , M.appHandleEvent = appEvent
   , M.appAttrMap = const $ attrMap V.defAttr []
-  , M.appChooseCursor = M.neverShowCursor
+  , M.appChooseCursor = const listToMaybe
   }
 
 appEvent
@@ -126,28 +136,25 @@ appEvent st (T.VtyEvent e) | dIsEditing st = do
   M.continue $ st
     { dEditor = edit'
     }
-appEvent st (T.VtyEvent (V.EvKey (V.KChar 'e') [])) =
-  M.continue $ st { dIsEditing = True }
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'f') [])) =
   M.performAction $ do
     modify @(Located (HsModule GhcPs)) finish
     pure st
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 's') [])) =
   M.performAction $ do
-    modify @(Located (HsModule GhcPs)) doSolve
-    updateState st
+    runSolve
+    pure $ st { dIsEditing = True }
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt st
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt st
 appEvent st (T.VtyEvent (V.EvKey V.KEsc [])) = M.halt st
 appEvent st _ = M.continue st
 
 
-updateState :: Mems r => Data -> Sem r Data
-updateState st = do
-  t <- typecheck nowUnderway
-  pure $ st
-    { dCurrentGoal = t
-    }
+runSolve :: Mems r => Sem r ()
+runSolve = do
+  ty <- typecheck nextSolve
+  modify @(Located (HsModule GhcPs)) $ doSolve ty
+
 
 
 

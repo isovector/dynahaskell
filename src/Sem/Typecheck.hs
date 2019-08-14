@@ -3,24 +3,27 @@
 
 module Sem.Typecheck where
 
-import Polysemy
-import Polysemy.State
-import Polysemy.Input
-import Polysemy.Trace
-import Sem.Ghcid
-import GHC
-import Language.Haskell.GHC.ExactPrint
-import Printers
-import Data.List
-import Data.Bifunctor
-import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
-import GHC (DynFlags)
-import MarkerUtils
 import Control.Lens
+import Control.Monad
+import Data.Bifunctor
+import Data.List
+import Data.Maybe
+import GHC
+import GHC (DynFlags)
+import Language.Haskell.GHC.ExactPrint
+import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
+import MarkerUtils
+import Polysemy
+import Polysemy.Input
+import Polysemy.State
+import Polysemy.Trace
+import Printers
+import Sem.Ghcid
+
 
 data Typecheck m a where
   Typecheck :: Traversal' (Located (HsModule GhcPs)) (HsExpr GhcPs)
-            -> Typecheck m (Maybe (HsType GhcPs))
+            -> Typecheck m (HsType GhcPs)
 
 makeSem ''Typecheck
 
@@ -42,16 +45,15 @@ holeTypeToGhcid =
       anns <- input
       dflags <- input
 
+      when (isNothing $ ast ^? l) $ trace "typechecking lens matched nothing"
+
       setContents $ uncurry exactPrint $ foo anns $
         ast & l .~ mkHole "_dyna_type"
       cts <- loadContents
 
       let ft = findHoleType $ concat cts
-      case ft of
-        "" -> pure Nothing
-        _ -> do
-          (_, L _ t) <- either (const $ error $ concat cts) pure $ getHoleType dflags ft
-          pure $ Just t
+      (_, L _ t) <- either (const $ error $ concat cts) pure $ getHoleType dflags ft
+      pure t
 
 
 findHoleType :: String -> String
