@@ -1,6 +1,7 @@
+{-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Sem.HoleType where
+module Sem.Typecheck where
 
 import Polysemy
 import Polysemy.State
@@ -14,11 +15,14 @@ import Data.List
 import Data.Bifunctor
 import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import GHC (DynFlags)
+import MarkerUtils
+import Control.Lens
 
-data HoleType m a where
-  HoleType :: HoleType m (Maybe (HsType GhcPs))
+data Typecheck m a where
+  Typecheck :: Traversal' (Located (HsModule GhcPs)) (HsExpr GhcPs)
+            -> Typecheck m (Maybe (HsType GhcPs))
 
-makeSem ''HoleType
+makeSem ''Typecheck
 
 
 
@@ -29,16 +33,17 @@ holeTypeToGhcid
                 , Input DynFlags
                 , Trace
                 ] r
-    => Sem (HoleType ': r) a
+    => Sem (Typecheck ': r) a
     -> Sem r a
 holeTypeToGhcid =
   interpret \case
-    HoleType -> do
+    Typecheck l -> do
       ast  <- get
       anns <- input
       dflags <- input
 
-      setContents $ uncurry exactPrint $ foo anns ast
+      setContents $ uncurry exactPrint $ foo anns $
+        ast & l .~ mkHole "_dyna_type"
       cts <- loadContents
 
       let ft = findHoleType $ concat cts
@@ -54,7 +59,7 @@ findHoleType = takeUntilP (\s -> isPrefixOf "Or perhaps" s || isPrefixOf "Where:
              . drop (length preamble)
              . dropUntil (isPrefixOf preamble)
   where
-    preamble = "Found hole: _to_solve :: "
+    preamble = "Found hole: _dyna_type :: "
 
 
 getHoleType :: DynFlags -> String -> Either String (Anns, Located (HsType GhcPs))

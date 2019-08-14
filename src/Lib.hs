@@ -25,7 +25,7 @@ import           Polysemy.Trace
 import           Printers
 import           Sem.FillHole
 import           Sem.Ghcid
-import           Sem.HoleType
+import           Sem.Typecheck
 import           SrcLoc
 
 
@@ -65,8 +65,8 @@ resetEditor = editor Editor (Just 1) ""
 
 type Mems r =
   Members
-    '[Input DynFlags
-     , HoleType
+    '[ Input DynFlags
+     , Typecheck
      , State (Located (HsModule GhcPs))
      , FillHole
      , State Anns
@@ -144,7 +144,7 @@ appEvent st _ = M.continue st
 
 updateState :: Mems r => Data -> Sem r Data
 updateState st = do
-  t <- holeType
+  t <- typecheck nowUnderway
   pure $ st
     { dCurrentGoal = t
     }

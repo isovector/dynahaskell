@@ -28,7 +28,7 @@ pattern Underway i activity <-
     HsPar NoExt $ noLoc $
       HsApp NoExt (noLoc (HsApp NoExt (noLoc ( HsVar NoExt (noLoc (Unqual underwayOcc))))
                 (noLoc (HsOverLit NoExt (OverLit NoExt (HsIntegral (IL (SourceText $ show i) False i))
-                      $ HsLit NoExt (HsInt NoExt (IL NoSourceText False i)))))))
+                      $ HsLit NoExt (HsInt NoExt (IL (SourceText $ show i) False i)))))))
           (noLoc (HsPar NoExt (noLoc activity))) where
 
 nowUnderway :: Data a => Traversal' a (HsExpr GhcPs)
@@ -37,6 +37,9 @@ nowUnderway = prevUnderway 0
 prevUnderway :: Data a => Integer -> Traversal' a (HsExpr GhcPs)
 prevUnderway n
   = prevUnderwayC n
+  . _Ctor' @"HsPar"
+  . position @2
+  . loc
   . _Ctor' @"HsApp"
   . position @3
   . loc
@@ -63,13 +66,13 @@ underwayOcc = mkVarOcc "underway"
 nextSolve :: Data a => Traversal' a (HsExpr GhcPs)
 nextSolve = locate (matchOcc "solve")
 
-toSolveHole :: HsExpr GhcPs
-toSolveHole = HsVar NoExt $ noLoc $ Unqual $ mkVarOcc "_to_solve"
+mkHole :: String -> HsExpr GhcPs
+mkHole = HsVar NoExt . noLoc . Unqual . mkVarOcc
 
 doSolve :: Data a => a -> a
 doSolve p =
   case p ^? nextSolve of
-    Just _ -> everywhere (mkT succUnderway) p & nextSolve .~ Underway 0 toSolveHole
+    Just _ -> everywhere (mkT succUnderway) p & nextSolve .~ Underway 0 (mkHole "_to_solve")
     Nothing -> p
 
 
