@@ -35,6 +35,8 @@ dependencies:
 - ghcid
 - vty
 - refinery
+- transformers
+- mtl
 
 default-extensions:
 - FlexibleContexts

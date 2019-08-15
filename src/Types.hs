@@ -1,6 +1,7 @@
 module Types
   ( module Types
   , module HsSyn
+  , module HsTypes
   , Located
   , GenLocated (..)
   , noLoc
@@ -17,6 +18,7 @@ module Types
 import BasicTypes
 import GHC
 import HsSyn
+import HsTypes
 import OccName
 import RdrName
 import Data.Generics.Product.Positions
