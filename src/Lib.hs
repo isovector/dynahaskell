@@ -25,9 +25,10 @@ import           Polysemy.Trace
 import           Printers
 import           Sem.FillHole
 import           Sem.Ghcid
+import           Sem.TypeInfo
 import           Sem.Typecheck
+import           Tactics
 import           Types
-import Tactics
 
 
 
@@ -178,8 +179,10 @@ main = do
        . runInputSem @Anns get
        . evalState z
        . runGhcid
+       . runTypeInfo
        . runFillHole
        . holeTypeToGhcid
        $ do
-    void $ defaultMain app $ defData
+    typeInfo "Either" >>= pprTraceM "hi" . ppr . tcCons
+    -- void $ defaultMain app $ defData
 

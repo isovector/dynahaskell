@@ -34,3 +34,17 @@ runGhcid m = do
   embed $ stopGhci g
   pure z
 
+
+dropUntil :: ([a] -> Bool) -> [a] -> [a]
+dropUntil f s@(_:xs)
+  | f s = s
+  | otherwise = dropUntil f xs
+dropUntil _ [] = []
+
+takeUntilP :: ([a] -> Bool) -> [a] -> [a]
+takeUntilP f s@(x:xs)
+  | f s = []
+  | otherwise = x : takeUntilP f xs
+takeUntilP _ [] = []
+
+

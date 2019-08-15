@@ -37,6 +37,7 @@ dependencies:
 - refinery
 - transformers
 - mtl
+- extra
 
 default-extensions:
 - FlexibleContexts
