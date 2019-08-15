@@ -67,6 +67,7 @@ type Mems r =
     '[ Input DynFlags
      , Input FreshInt
      , Typecheck
+     , TypeInfo
      , State LModule
      , FillHole
      , State Anns
@@ -183,6 +184,5 @@ main = do
        . runFillHole
        . holeTypeToGhcid
        $ do
-    typeInfo "Either" >>= pprTraceM "hi" . ppr . tcCons
-    -- void $ defaultMain app $ defData
+    void $ defaultMain app $ defData
 

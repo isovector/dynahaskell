@@ -65,7 +65,7 @@ toSType (HsTyVar _ NotPromoted (L _ (Unqual (occNameString -> t)))) =
     True ->  Just $ STyCon t
     False -> Just $ STyVar $ TVar t
 toSType (HsTupleTy _ _ a) =
-  let l = length a
+  let l = length a - 1
    in foldl' (\s -> liftA2 SAppTy s . toSType . unLoc)
              (Just . STyCon $ ('(':)
                    . (++ ")")
@@ -102,4 +102,9 @@ _fromSType (SAppTy a b) =
   HsAppTy NoExt (noLoc $ _fromSType a) (noLoc $ _fromSType b)
 _fromSType (SArrTy a b) =
   HsFunTy NoExt (noLoc $ _fromSType a) (noLoc $ _fromSType b)
+
+stypeCon :: SType -> Maybe String
+stypeCon (STyCon s) = Just s
+stypeCon (SAppTy a _) = stypeCon a
+stypeCon _ = Nothing
 

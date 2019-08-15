@@ -6,6 +6,7 @@
 module Tactics
   ( tactic
   , auto
+  , split
   , deepen
   , assumption
   , intro
@@ -19,6 +20,7 @@ import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import MarkerUtils
 import Polysemy
 import Polysemy.Input
+import Sem.TypeInfo
 import Refinery.Tactic
 import Types
 
@@ -33,9 +35,14 @@ data TacticError
   deriving (Eq, Ord, Show)
 
 
-type Tactic r = TacticT Judgement Expr (ProvableT Judgement (ExceptT TacticError (Sem r))) ()
+type Tactics r = TacticT Judgement Expr (ProvableT Judgement (ExceptT TacticError (Sem r)))
+type Tactic r = Tactics r ()
 
-type TacticMems r = Members '[Input FreshInt, Input DynFlags] r
+type TacticMems r = Members
+  '[ Input FreshInt
+   , Input DynFlags
+   , TypeInfo
+   ] r
 
 assumption :: Tactic r
 assumption = rule $ \(Judgement hy g) ->
@@ -46,15 +53,23 @@ assumption = rule $ \(Judgement hy g) ->
 newtype FreshInt = FreshInt { getFreshInt :: Int }
   deriving (Eq, Ord, Show)
 
-intro :: TacticMems r => String -> Tactic r
+
+sem
+    :: MonadTrans t
+    => Sem r a
+    -> t (ProvableT Judgement (ExceptT TacticError (Sem r))) a
+sem = lift . lift . lift
+
+
+intro :: forall r. TacticMems r => String -> Tactic r
 intro n = rule $ \(Judgement hy g) ->
   case g of
     (SArrTy a b) -> do
-      u <- fmap getFreshInt $ lift $ lift $ lift input
+      u <- fmap getFreshInt $ sem input
       let vname = n ++ show u
           v = Var vname
       sg <- subgoal $ Judgement ((v, a) : hy) b
-      e <- lift $ lift $ lift $ syntactically $ mconcat
+      e <- sem $ syntactically $ mconcat
              [ "\\"
              , vname
              , " -> "
@@ -63,6 +78,24 @@ intro n = rule $ \(Judgement hy g) ->
 
       pure $ subst [("_a", sg)] e
     t -> throwError $ GoalMismatch "intro" t
+
+
+split :: TacticMems r => Tactic r
+split = rule $ \(Judgement hy g) ->
+  case stypeCon g of
+    Nothing -> throwError $ GoalMismatch "split" g
+    Just tc -> do
+      tci <- sem $ typeInfo tc
+      case tcCons tci of
+        [dc] -> do
+          let args = fmap unLoc . hsConDeclArgTys $ con_args dc
+          case traverse toSType args of
+            Just sts -> do
+              sgs <- traverse (subgoal . Judgement hy) sts
+              pure $ foldl' (\a b -> HsApp NoExt (noLoc a) (noLoc b)) (HsVar NoExt $ noLoc $ tcName tci) sgs
+            Nothing -> throwError $ GoalMismatch "split" g
+        _ -> throwError $ GoalMismatch "split" g
+
 
 
 syntactically
@@ -98,13 +131,13 @@ hush _ = Nothing
 
 auto :: TacticMems r => Tactic r
 auto = do
-  intro "x" <!> assumption
+  intro "x" <!> split <!> assumption
   auto
 
 deepen :: TacticMems r => Int -> Tactic r
 deepen 0 = pure ()
 deepen depth = do
-  intro "x" <!> assumption <!> pure ()
+  intro "x" <!> split <!> assumption <!> pure ()
   deepen $ depth - 1
 
 
