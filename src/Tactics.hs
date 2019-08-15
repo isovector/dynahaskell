@@ -6,6 +6,7 @@
 module Tactics
   ( tactic
   , auto
+  , deepen
   , assumption
   , intro
   , FreshInt (..)
@@ -50,17 +51,18 @@ toSType (HsTyVar _ NotPromoted (L _ (Unqual (occNameString -> t)))) =
   case isUpper $ head t of
     True ->  Just $ STyCon t
     False -> Just $ STyVar $ TVar t
-toSType (HsTupleTy _ HsBoxedTuple a) =
+toSType (HsTupleTy _ _ a) =
   let l = length a
    in foldl' (\s -> liftA2 SAppTy s . toSType . unLoc)
-             (Just $ STyCon $ replicate l ',') a
+             (Just . STyCon $ ('(':)
+                   . (++ ")")
+                   $ replicate l ',') a
 toSType (HsForAllTy _ _ (L _ t))    = toSType t
 toSType (HsTyVar _ _ _)             = Nothing
 toSType (HsQualTy _ _ _)            = Nothing
 toSType (HsAppTy _ (L _ a) (L _ b)) = SAppTy <$> toSType a <*> toSType b
 toSType (HsFunTy _ (L _ a) (L _ b)) = SArrTy <$> toSType a <*> toSType b
 toSType (HsListTy _ (L _ a))        = SAppTy <$> pure (STyCon "[]") <*> toSType a
-toSType (HsTupleTy _ _ _)           = Nothing
 toSType (HsSumTy _ _)               = Nothing
 toSType (HsOpTy _ _ _ _)            = Nothing -- TODO(sandy): do this tho
 toSType (HsParTy _ (L _ a))         = toSType a
@@ -167,7 +169,13 @@ auto = do
   intro "x" <!> assumption
   auto
 
+deepen :: TacticMems r => Int -> Tactic r
+deepen 0 = pure ()
+deepen depth = do
+  intro "x" <!> assumption <!> pure ()
+  deepen $ depth - 1
+
 
 instance MonadExtract Expr (ProvableT Judgement (ExceptT TacticError (Sem r))) where
-  hole = lift $ lift $ pure $ HsVar NoExt $ noLoc $ Unqual $ mkVarOcc "todo"
+  hole = lift $ lift $ pure $ HsVar NoExt $ noLoc $ Unqual $ mkVarOcc "solve"
 

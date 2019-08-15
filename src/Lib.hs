@@ -138,7 +138,7 @@ appEvent st (T.VtyEvent e) | dIsEditing st = do
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 't') [])) =
   M.performAction $ do
     ty <- typecheck nextSolve
-    tactic ty auto >>= \case
+    tactic ty (deepen 10) >>= \case
       Just expr -> modify @LModule $ nextSolve .~ expr
       Nothing -> pure ()
     pure st
