@@ -8,12 +8,17 @@ import Polysemy
 import Polysemy.Input
 import Sem.Ghcid
 import Types
+import Control.Lens
+import MarkerUtils
+import OccName hiding (tcName)
+
+import Outputable
 
 
 data TCInfo = TCInfo
-  { tcName :: RdrName
-  , tcVars :: [HsTyVarBndr GhcPs]
-  , tcCons :: [ConDecl GhcPs]
+  { tciName :: RdrName
+  , tciVars :: [HsTyVarBndr GhcPs]
+  , tciCons :: [ConDecl GhcPs]
   }
 
 
@@ -23,24 +28,38 @@ data TypeInfo m a where
 makeSem ''TypeInfo
 
 
-runTypeInfo :: Members '[Ghcid, Input DynFlags] r => Sem (TypeInfo ': r) a -> Sem r a
-runTypeInfo =
-  interpret \case
-    TypeInfo tycon -> do
-      dflags <- input
+runTypeInfo
+    :: Members '[ Ghcid
+                , Input DynFlags
+                , Input LModule
+                ] r
+    => Sem (TypeInfo ': r) a
+    -> Sem r a
+runTypeInfo = interpret \case
+  TypeInfo tycon -> do
+    ast <- input
+    case ast ^? decls . filtered ( (== Just tycon)
+                                 . (^? tcName . to occNameString)) of
+      Just x -> pure $ assembleTCI x
+      Nothing -> do
+        dflags <- input
 
-      c <- doEval $ ":info " ++ tycon
-      let d = ("data " ++)
-            . takeUntilP (isPrefixOf "-- Defined")
-            . dropUntil (isPrefixOf tycon)
-            $ concat c
+        c <- doEval $ ":info " ++ tycon
+        let d = ("data " ++)
+              . takeUntilP (isPrefixOf "-- Defined")
+              . dropUntil (isPrefixOf tycon)
+              $ concat c
+        -- pprTraceM "got:" $ text d
 
-      (_, z)
-        <- either (error . snd) pure
-         $ parseDecl dflags "<typeinfo>" d
-      let L _ (TyClD _ (DataDecl _ (L _ tcname) (HsQTvs _ tyvars) _ (HsDataDefn _ _ _ _ _ cs _))) = z
+        (_, z)
+          <- either (error . ("runTypeInfo: " ++) . snd) pure
+           $ parseDecl dflags "<typeinfo>" d
 
-      pure $ TCInfo tcname (fmap unLoc tyvars) $ fmap unLoc cs
+        pure $ assembleTCI $ unLoc z
 
 
+assembleTCI :: HsDecl GhcPs -> TCInfo
+assembleTCI (TyClD _ (DataDecl _ (L _ tcname) (HsQTvs _ tyvars) _ (HsDataDefn _ _ _ _ _ cs _))) =
+  TCInfo tcname (fmap unLoc tyvars) $ fmap unLoc cs
+assembleTCI _ = error "assembleTCI"
 

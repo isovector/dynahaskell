@@ -2,6 +2,8 @@ module Test where
 
 import Markers
 
-test :: a -> b -> (a, b)
+data Fonk a = Fonk (a, Bool)
+
+test :: a -> Bool -> c -> (a, Bool, c)
 test = solve
 

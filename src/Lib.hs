@@ -64,14 +64,14 @@ resetEditor = editor Editor (Just 1) ""
 
 type Mems r =
   Members
-    '[ Input DynFlags
+    '[ FillHole
+     , Input DynFlags
      , Input FreshInt
-     , Typecheck
-     , TypeInfo
-     , State LModule
-     , FillHole
      , State Anns
+     , State LModule
      , Trace
+     , TypeInfo
+     , Typecheck
      ] r
 
 
@@ -140,7 +140,15 @@ appEvent st (T.VtyEvent e) | dIsEditing st = do
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 't') [])) =
   M.performAction $ do
     ty <- typecheck nextSolve
-    tactic ty (deepen 10) >>= \case
+    tactic ty (deepen 100) >>= \case
+      Just expr -> modify @LModule $ nextSolve .~ expr
+      Nothing -> pure ()
+    pure st
+appEvent st (T.VtyEvent (V.EvKey (V.KChar 'o') [])) =
+  M.performAction $ do
+    ty <- typecheck nextSolve
+    tactic ty one >>= \case
+
       Just expr -> modify @LModule $ nextSolve .~ expr
       Nothing -> pure ()
     pure st
@@ -160,9 +168,12 @@ appEvent st _ = M.continue st
 
 runSolve :: Mems r => Sem r ()
 runSolve = do
-  ty <- typecheck nextSolve
-  modify @LModule $ doSolve ty
-
+  gets @LModule (^? nextSolve) >>=
+    \case
+      Just _ -> do
+        ty <- typecheck nextSolve
+        modify @LModule $ doSolve ty
+      Nothing -> pure ()
 
 
 
@@ -179,6 +190,7 @@ main = do
        . evalState anns
        . runInputSem @Anns get
        . evalState z
+       . runInputSem @LModule get
        . runGhcid
        . runTypeInfo
        . runFillHole

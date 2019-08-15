@@ -14,7 +14,10 @@ module Types
   , RdrName (..)
   , _Ctor'
   , position
+  , field
+  , field'
   , module BasicTypes
+  , Anns
   ) where
 
 import BasicTypes
@@ -22,6 +25,7 @@ import Control.Applicative
 import Data.Char
 import Data.Generics.Product.Positions
 import Data.Generics.Sum.Constructors
+import Data.Generics.Product.Fields
 import Data.List
 import GHC hiding (Type)
 import GHC.Exts
@@ -29,6 +33,7 @@ import HsSyn
 import HsTypes
 import OccName
 import RdrName
+import Language.Haskell.GHC.ExactPrint
 
 type Type = HsType GhcPs
 type Expr = HsExpr GhcPs
@@ -103,8 +108,10 @@ _fromSType (SAppTy a b) =
 _fromSType (SArrTy a b) =
   HsFunTy NoExt (noLoc $ _fromSType a) (noLoc $ _fromSType b)
 
-stypeCon :: SType -> Maybe String
-stypeCon (STyCon s) = Just s
-stypeCon (SAppTy a _) = stypeCon a
-stypeCon _ = Nothing
+stypeConApps :: SType -> Maybe (String, [SType])
+stypeConApps = go []
+  where
+    go zs (STyCon s) = Just (s, reverse zs)
+    go zs (SAppTy a b) = go (b : zs) a
+    go _ _ = Nothing
 

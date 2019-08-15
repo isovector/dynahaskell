@@ -5,7 +5,6 @@ module MarkerUtils where
 import Data.Maybe
 import Data.Foldable
 import Generics.SYB hiding (Generic)
-import GHC.Generics
 import Control.Lens
 import Data.Data.Lens
 import GenericOrphans ()
@@ -77,7 +76,7 @@ matchOcc occ (HsVar _ (L _ (Unqual occ'))) = mkVarOcc occ == occ'
 matchOcc _ _ = False
 
 locate :: (Data a, Data b) => (b -> Bool) -> Traversal' a b
-locate f = biplate . deepOf uniplate (filtered f)
+locate f = biplate . deepOf uniplate (taking 1 $ filtered f)
 
 underwayOcc :: OccName
 underwayOcc = mkVarOcc "underway"
@@ -118,4 +117,19 @@ isFinished a =
     , a ^? nowUnderway . locate (matchOcc "solve")
     ]
 
+
+decls :: Traversal' LModule (HsDecl GhcPs)
+decls = loc
+      . _Ctor' @"HsModule"
+      . position @4
+      . traverse
+      . loc
+
+tcName :: Traversal' (HsDecl GhcPs) OccName
+tcName = _Ctor' @"TyClD"
+       . position @2
+       .  _Ctor' @"DataDecl"
+       . position @2
+       . loc
+       . _Ctor' @"Unqual"
 
