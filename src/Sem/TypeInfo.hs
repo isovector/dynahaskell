@@ -12,12 +12,10 @@ import Control.Lens
 import MarkerUtils
 import OccName hiding (tcName)
 
-import Outputable
-
 
 data TCInfo = TCInfo
   { tciName :: RdrName
-  , tciVars :: [HsTyVarBndr GhcPs]
+  , tciVars :: [TVar]
   , tciCons :: [ConDecl GhcPs]
   }
 
@@ -60,6 +58,13 @@ runTypeInfo = interpret \case
 
 assembleTCI :: HsDecl GhcPs -> TCInfo
 assembleTCI (TyClD _ (DataDecl _ (L _ tcname) (HsQTvs _ tyvars) _ (HsDataDefn _ _ _ _ _ cs _))) =
-  TCInfo tcname (fmap unLoc tyvars) $ fmap unLoc cs
+  TCInfo tcname (fmap (hsTyVarBndrVar . unLoc) tyvars) $ fmap unLoc cs
 assembleTCI _ = error "assembleTCI"
+
+
+hsTyVarBndrVar :: HsTyVarBndr GhcPs -> TVar
+hsTyVarBndrVar (UserTyVar _ (L _ (Unqual p))) = TVar $ occNameString p
+hsTyVarBndrVar (KindedTyVar _ (L _ (Unqual p)) _) = TVar $ occNameString p
+hsTyVarBndrVar _ = error "hsTyVarBndrVar"
+
 

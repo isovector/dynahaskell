@@ -14,16 +14,17 @@ module Tactics
   , FreshInt (..)
   ) where
 
-import Control.Lens
-import Control.Monad.Except
-import Data.List
-import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
-import MarkerUtils
-import Polysemy
-import Polysemy.Input
-import Sem.TypeInfo
-import Refinery.Tactic
-import Types
+import  Data.List
+import  Polysemy
+import  Types
+import  Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
+import  Polysemy.Input
+import  Refinery.Tactic
+import  Data.Maybe
+import  Control.Lens
+import  MarkerUtils
+import  Sem.TypeInfo
+import  Control.Monad.Except
 
 import Outputable
 
@@ -79,7 +80,7 @@ intro n = rule $ \(Judgement hy g) ->
              , "_a"
              ]
 
-      pure $ subst [("_a", sg)] e
+      pure $ substHole [("_a", sg)] e
     t -> throwError $ GoalMismatch "intro" t
 
 
@@ -87,19 +88,20 @@ split :: TacticMems r => Tactic r
 split = rule $ \(Judgement hy g) ->
   case stypeConApps g of
     Nothing -> throwError $ GoalMismatch "split" g
-    Just (tc, sts) -> do
+    Just (tc, apps) -> do
       tci <- sem $ typeInfo tc
       case tciCons tci of
         [dc] -> do
           let args = fmap unLoc . hsConDeclArgTys $ con_args dc
+              subs = zip (tciVars tci) apps
+              -- need to substHole the tciVars with apps in this ^
               name = head $ getConNames dc
-          -- case traverse toSType args of
-            -- Just sts -> do
-          do
-              sgs <- traverse (subgoal . Judgement hy) sts
+          case traverse toSType args of
+            Just sts -> do
+              sgs <- traverse (subgoal . Judgement hy . substTVars subs) sts
               pure $ foldl' (\a -> HsApp NoExt (noLoc a) . noLoc . HsPar NoExt . noLoc)
                             (HsVar NoExt name) sgs
-            -- Nothing -> throwError $ GoalMismatch "split" g
+            Nothing -> throwError $ GoalMismatch "split" g
         _ -> throwError $ GoalMismatch "split" g
 
 
@@ -115,9 +117,14 @@ syntactically str = do
     Right (_, expr) -> do
       pure $ unLoc expr
 
+substTVars :: [(TVar, SType)] -> SType -> SType
+substTVars subs (STyVar t) = fromMaybe (error "substTVars") $ lookup t subs
+substTVars _ t@(STyCon _) = t
+substTVars subs (SArrTy a b) = SArrTy (substTVars subs a) (substTVars subs b)
+substTVars subs (SAppTy a b) = SAppTy (substTVars subs a) (substTVars subs b)
 
-subst :: [(String, Expr)] -> Expr -> Expr
-subst = flip $ foldr $ \(s, e) -> locate (matchOcc s) .~ e
+substHole :: [(String, Expr)] -> Expr -> Expr
+substHole = flip $ foldr $ \(s, e) -> locate (matchOcc s) .~ e
 
 
 tactic :: TacticMems r => Type -> Tactic r -> Sem r (Maybe Expr)

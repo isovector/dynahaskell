@@ -111,7 +111,7 @@ _fromSType (SArrTy a b) =
 stypeConApps :: SType -> Maybe (String, [SType])
 stypeConApps = go []
   where
-    go zs (STyCon s) = Just (s, reverse zs)
+    go zs (STyCon s) = Just (s, zs)
     go zs (SAppTy a b) = go (b : zs) a
     go _ _ = Nothing
 
