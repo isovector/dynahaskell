@@ -1,8 +1,15 @@
+{-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 
-module Tactics where
+module Tactics
+  ( tactic
+  , auto
+  , assumption
+  , intro
+  , FreshInt (..)
+  ) where
 
 import Control.Lens
 import MarkerUtils
@@ -18,9 +25,6 @@ import Data.List
 import Types
 import OccName
 import Polysemy.Input
-import Polysemy.State
-
-import Outputable
 
 newtype Var = Var String
   deriving (Eq, Ord, Show, IsString)
@@ -74,15 +78,15 @@ toSType (HsWildCardTy _)            = Nothing
 toSType (XHsType _)                 = Nothing
 
 
-fromSType :: SType -> Type
-fromSType (STyVar (TVar t)) =
+_fromSType :: SType -> Type
+_fromSType (STyVar (TVar t)) =
   HsTyVar NoExt NotPromoted $ noLoc $ Unqual $ mkVarOcc t
-fromSType (STyCon t) =
+_fromSType (STyCon t) =
   HsTyVar NoExt NotPromoted $ noLoc $ Unqual $ mkVarOcc t
-fromSType (SAppTy a b) =
-  HsAppTy NoExt (noLoc $ fromSType a) (noLoc $ fromSType b)
-fromSType (SArrTy a b) =
-  HsFunTy NoExt (noLoc $ fromSType a) (noLoc $ fromSType b)
+_fromSType (SAppTy a b) =
+  HsAppTy NoExt (noLoc $ _fromSType a) (noLoc $ _fromSType b)
+_fromSType (SArrTy a b) =
+  HsFunTy NoExt (noLoc $ _fromSType a) (noLoc $ _fromSType b)
 
 
 data Judgement = Judgement [(Var, SType)] SType
@@ -97,6 +101,8 @@ data TacticError
 
 type Tactic r = TacticT Judgement Expr (ProvableT Judgement (ExceptT TacticError (Sem r))) ()
 
+type TacticMems r = Members '[Input FreshInt, Input DynFlags] r
+
 assumption :: Tactic r
 assumption = rule $ \(Judgement hy g) ->
   case find ((== g) . snd) hy of
@@ -106,7 +112,7 @@ assumption = rule $ \(Judgement hy g) ->
 newtype FreshInt = FreshInt { getFreshInt :: Int }
   deriving (Eq, Ord, Show)
 
-intro :: Members '[Input FreshInt, Input DynFlags] r => String -> Tactic r
+intro :: TacticMems r => String -> Tactic r
 intro n = rule $ \(Judgement hy g) ->
   case g of
     (SArrTy a b) -> do
@@ -126,7 +132,7 @@ intro n = rule $ \(Judgement hy g) ->
 
 
 syntactically
-    :: Members '[Input DynFlags] r
+    :: TacticMems r
     => String
     -> Sem r Expr
 syntactically str = do
@@ -141,18 +147,25 @@ subst :: [(String, Expr)] -> Expr -> Expr
 subst = flip $ foldr $ \(s, e) -> locate (matchOcc s) .~ e
 
 
-runIt :: DynFlags -> SDoc
-runIt dflags
-  = either (text . show)
-           (ppr . fst)
-  . run
-  . runInputConst dflags
-  . evalState @Int 0
-  . runInputSem (gets FreshInt <* modify @Int (+1))
-  . runExceptT
-  . runProvableT
-  . runTacticT (intro "a" >> intro "a" >> assumption)
-  $ Judgement [] $ SArrTy (STyVar "a") (SArrTy (STyVar "b") (STyVar "a"))
+tactic :: TacticMems r => Type -> Tactic r -> Sem r (Maybe Expr)
+tactic ty t =
+  case toSType ty of
+    Just sty -> fmap (fmap fst . hush)
+              . runExceptT
+              . runProvableT
+              . runTacticT t
+              $ Judgement [] sty
+    Nothing -> pure Nothing
+
+
+hush :: Either a b -> Maybe b
+hush (Right b) = Just b
+hush _ = Nothing
+
+auto :: TacticMems r => Tactic r
+auto = do
+  intro "x" <!> assumption
+  auto
 
 
 instance MonadExtract Expr (ProvableT Judgement (ExceptT TacticError (Sem r))) where
