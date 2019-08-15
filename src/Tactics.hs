@@ -4,6 +4,9 @@
 
 module Tactics where
 
+import Control.Lens
+import MarkerUtils
+import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import Data.Char
 import Control.Applicative
 import Refinery.Tactic
@@ -15,6 +18,9 @@ import Data.List
 import Types
 import OccName
 import Polysemy.Input
+import Polysemy.State
+
+import Outputable
 
 newtype Var = Var String
   deriving (Eq, Ord, Show, IsString)
@@ -100,25 +106,54 @@ assumption = rule $ \(Judgement hy g) ->
 newtype FreshInt = FreshInt { getFreshInt :: Int }
   deriving (Eq, Ord, Show)
 
-intro :: forall r. Member (Input FreshInt) r => String -> Tactic r
+intro :: Members '[Input FreshInt, Input DynFlags] r => String -> Tactic r
 intro n = rule $ \(Judgement hy g) ->
   case g of
     (SArrTy a b) -> do
       u <- fmap getFreshInt $ lift $ lift $ lift input
-      let v = Var $ n ++ show u
+      let vname = n ++ show u
+          v = Var vname
       sg <- subgoal $ Judgement ((v, a) : hy) b
-      pure $ HsLam NoExt
-           $ MG NoExt
-                ( noLoc
-                . pure
-                . noLoc
-                . Match NoExt LambdaExpr (pure . noLoc $ VarPat NoExt $ noLoc $ getVarName v)
-                . GRHSs NoExt (pure $ noLoc $ GRHS NoExt [] $ noLoc sg)
-                . noLoc
-                $ emptyLocalBinds
-                )
-                FromSource
+      e <- lift $ lift $ lift $ syntactically $ mconcat
+             [ "\\"
+             , vname
+             , " -> "
+             , "_a"
+             ]
+
+      pure $ subst [("_a", sg)] e
     t -> throwError $ GoalMismatch "intro" t
+
+
+syntactically
+    :: Members '[Input DynFlags] r
+    => String
+    -> Sem r Expr
+syntactically str = do
+  dflags <- input
+  case parseExpr dflags "syntactically" str of
+    Left _ -> error $ "you called syntactically badly, on " ++ str
+    Right (_, expr) -> do
+      pure $ unLoc expr
+
+
+subst :: [(String, Expr)] -> Expr -> Expr
+subst = flip $ foldr $ \(s, e) -> locate (matchOcc s) .~ e
+
+
+runIt :: DynFlags -> SDoc
+runIt dflags
+  = either (text . show)
+           (ppr . fst)
+  . run
+  . runInputConst dflags
+  . evalState @Int 0
+  . runInputSem (gets FreshInt <* modify @Int (+1))
+  . runExceptT
+  . runProvableT
+  . runTacticT (intro "a" >> intro "a" >> assumption)
+  $ Judgement [] $ SArrTy (STyVar "a") (SArrTy (STyVar "b") (STyVar "a"))
+
 
 instance MonadExtract Expr (ProvableT Judgement (ExceptT TacticError (Sem r))) where
   hole = lift $ lift $ pure $ HsVar NoExt $ noLoc $ Unqual $ mkVarOcc "todo"

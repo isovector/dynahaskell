@@ -27,6 +27,7 @@ import           Sem.FillHole
 import           Sem.Ghcid
 import           Sem.Typecheck
 import           Types
+import Tactics
 
 
 
