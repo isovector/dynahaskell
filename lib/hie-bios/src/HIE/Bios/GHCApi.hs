@@ -37,7 +37,6 @@ import System.FilePath
 
 import qualified HIE.Bios.Gap as Gap
 import HIE.Bios.Types
-import Debug.Trace
 import qualified Crypto.Hash.SHA1 as H
 import qualified Data.ByteString.Char8 as B
 import Data.ByteString.Base16
@@ -99,12 +98,10 @@ initializeFlagsWithCradleWithMessage ::
         -> m ()
 initializeFlagsWithCradleWithMessage msg fp cradle = do
       (ex, err, ghcOpts) <- liftIO $ getOptions (cradleOptsProg cradle) fp
-      G.pprTrace "res" (G.text (show (ex, err, ghcOpts, fp))) (return ())
       case ex of
         ExitFailure _ -> throwCradleError err
         _ -> return ()
       let compOpts = CompilerOptions ghcOpts
-      liftIO $ hPrint stderr ghcOpts
       initSessionWithMessage msg compOpts
 
 data CradleError = CradleError String deriving (Show)
@@ -133,7 +130,6 @@ initSessionWithMessage :: (GhcMonad m)
             -> m ()
 initSessionWithMessage msg CompilerOptions {..} = do
     df <- G.getSessionDynFlags
-    traceShowM (length ghcOptions)
 
     let opts_hash = B.unpack $ encode $ H.finalize $ H.updates H.init (map B.pack ghcOptions)
     fp <- liftIO $ getCacheDir opts_hash
@@ -192,8 +188,7 @@ setHiDir f d = d { hiDir      = Just f}
 addCmdOpts :: (GhcMonad m)
            => [String] -> DynFlags -> m (DynFlags, [G.Target])
 addCmdOpts cmdOpts df1 = do
-  (df2, leftovers, warns) <- G.parseDynamicFlags df1 (map G.noLoc cmdOpts)
-  traceShowM (map G.unLoc leftovers, length warns)
+  (df2, leftovers, _) <- G.parseDynamicFlags df1 (map G.noLoc cmdOpts)
 
   let
      -- To simplify the handling of filepaths, we normalise all filepaths right

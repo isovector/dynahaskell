@@ -21,7 +21,6 @@ import Data.FileEmbed
 import System.IO.Temp
 import Data.List
 
-import Debug.Trace
 import System.PosixCompat.Files
 
 ----------------------------------------------------------------
@@ -135,7 +134,7 @@ processCabalWrapperArgs args =
     case lines args of
         [dir, ghc_args] ->
             let final_args = removeInteractive $ map (fixImportDirs dir) (words ghc_args)
-            in trace dir $ Just final_args
+            in Just final_args
         _ -> Nothing
 
 cabalAction :: FilePath -> Maybe String -> FilePath -> IO (ExitCode, String, [String])
@@ -144,8 +143,7 @@ cabalAction work_dir mc _fp = do
     if isWindows then cabalWrapperBat else cabalWrapper
   -- TODO: This isn't portable for windows
   setFileMode wrapper_fp accessModes
-  check <- readFile wrapper_fp
-  traceM check
+  _ <- readFile wrapper_fp
   let cab_args = ["v2-repl", "-v0", "--with-compiler", wrapper_fp]
                   ++ [component_name | Just component_name <- [mc]]
   (ex, args, stde) <-
@@ -191,8 +189,7 @@ stackAction work_dir fp = do
   wrapper_fp <- writeSystemTempFile "wrapper" stackWrapper
   -- TODO: This isn't portable for windows
   setFileMode wrapper_fp accessModes
-  check <- readFile wrapper_fp
-  traceM check
+  _ <- readFile wrapper_fp
   (ex1, args, stde) <-
       withCurrentDirectory work_dir (readProcessWithExitCode "stack" ["repl", "--silent", "--no-load", "--with-ghc", wrapper_fp, fp ] [])
   (ex2, pkg_args, stdr) <-
@@ -241,10 +238,8 @@ rulesHaskellAction work_dir fp = do
   wrapper_fp <- writeSystemTempFile "wrapper" bazelCommand
   -- TODO: This isn't portable for windows
   setFileMode wrapper_fp accessModes
-  check <- readFile wrapper_fp
-  traceM check
+  _ <- readFile wrapper_fp
   let rel_path = makeRelative work_dir fp
-  traceM rel_path
   (ex, args, stde) <-
       withCurrentDirectory work_dir (readProcessWithExitCode wrapper_fp [rel_path] [])
   let args'  = filter (/= '\'') args
