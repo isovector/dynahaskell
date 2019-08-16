@@ -99,7 +99,7 @@ split = rule $ \(Judgement hy g) ->
           case traverse toSType args of
             Just sts -> do
               sgs <- traverse (subgoal . Judgement hy . substTVars subs) sts
-              pure $ foldl' (\a -> HsApp NoExt (noLoc a) . noLoc . HsPar NoExt . noLoc)
+              pure $ foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec . noLoc)
                             (HsVar NoExt name) sgs
             Nothing -> throwError $ GoalMismatch "split" g
         _ -> throwError $ GoalMismatch "split" g

@@ -14,6 +14,7 @@ import           Control.Monad
 import           Data.Maybe
 import           GHC (SrcSpan)
 import qualified Graphics.Vty as V
+import           HIE.Bios
 import           Language.Haskell.GHC.ExactPrint
 import           Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import           MarkerUtils
@@ -24,8 +25,8 @@ import           Polysemy.State
 import           Polysemy.Trace
 import           Printers
 import           Sem.FillHole
-import           Sem.Ghcid
 import           Sem.Ghc
+import           Sem.Ghcid
 import           Sem.TypeInfo
 import           Sem.Typecheck
 import           Tactics
@@ -183,7 +184,6 @@ main :: IO ()
 main = do
   contents <- readFile "src/Test.hs"
   Right (dflags, (anns, z)) <- parseModuleFromString "src/Lib.hs" contents
-
 
   runGHC
        . traceToIO
