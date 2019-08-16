@@ -25,6 +25,7 @@ import           Polysemy.Trace
 import           Printers
 import           Sem.FillHole
 import           Sem.Ghcid
+import           Sem.Ghc
 import           Sem.TypeInfo
 import           Sem.Typecheck
 import           Tactics
@@ -65,6 +66,7 @@ resetEditor = editor Editor (Just 1) ""
 type Mems r =
   Members
     '[ FillHole
+     , Embed Ghc
      , Input DynFlags
      , Input FreshInt
      , State Anns
@@ -183,7 +185,8 @@ main = do
   Right (dflags, (anns, z)) <- parseModuleFromString "src/Lib.hs" contents
 
 
-  runM . traceToIO
+  runGHC
+       . traceToIO
        . runInputConst dflags
        . evalState @Int 0
        . runInputSem (gets FreshInt <* modify @Int (+1))

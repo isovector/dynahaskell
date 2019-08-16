@@ -38,6 +38,7 @@ dependencies:
 - transformers
 - mtl
 - extra
+- hie-bios
 
 default-extensions:
 - FlexibleContexts

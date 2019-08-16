@@ -125,10 +125,10 @@ cabalCradle wdir mc = do
   }
 
 cabalWrapper :: String
-cabalWrapper = $(embedStringFile "wrappers/cabal")
+cabalWrapper = $(embedStringFile "lib/hie-bios/wrappers/cabal")
 
 cabalWrapperBat :: String
-cabalWrapperBat = $(embedStringFile "wrappers/cabal.bat")
+cabalWrapperBat = $(embedStringFile "lib/hie-bios/wrappers/cabal.bat")
 
 cabalAction :: FilePath -> Maybe String -> FilePath -> IO (ExitCode, String, [String])
 cabalAction work_dir mc _fp = do
@@ -179,7 +179,7 @@ stackCradle wdir =
 
 -- Same wrapper works as with cabal
 stackWrapper :: String
-stackWrapper = $(embedStringFile "wrappers/cabal")
+stackWrapper = $(embedStringFile "lib/hie-bios/wrappers/cabal")
 
 stackAction :: FilePath -> FilePath -> IO (ExitCode, String, [String])
 stackAction work_dir fp = do
@@ -228,7 +228,7 @@ rulesHaskellCradle wdir = do
 
 
 bazelCommand :: String
-bazelCommand = $(embedStringFile "wrappers/bazel")
+bazelCommand = $(embedStringFile "lib/hie-bios/wrappers/bazel")
 
 rulesHaskellAction :: FilePath -> FilePath -> IO (ExitCode, String, [String])
 rulesHaskellAction work_dir fp = do

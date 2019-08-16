@@ -2,6 +2,7 @@ resolver: lts-14.0
 
 packages:
 - .
+- lib/hie-bios
 
 extra-deps:
 - chiasma-0.1.0.0@sha256:0d95d24746716430eca2d54755384e7f0da8c6cac4f4171705f47ff7c907ba87,2472
