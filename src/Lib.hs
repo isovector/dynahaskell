@@ -171,12 +171,12 @@ appEvent st _ = M.continue st
 
 runSolve :: Mems r => Sem r ()
 runSolve = do
-  gets @LModule (^? nextSolve) >>=
+  gets @LModule (has nextSolve) >>=
     \case
-      Just _ -> do
+      True -> do
         ty <- typecheck nextSolve
         modify @LModule $ doSolve ty
-      Nothing -> pure ()
+      False -> pure ()
 
 
 

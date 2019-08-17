@@ -18,6 +18,7 @@ import Polysemy.Trace
 import Printers
 import Sem.Ghcid
 import Types
+import Outputable hiding (trace)
 
 
 data Typecheck m a where
@@ -51,6 +52,7 @@ holeTypeToGhcid =
       cts <- loadContents
 
       let ft = findHoleType $ concat cts
+
       (_, L _ t) <- either (const $ error $ concat cts) pure $ getHoleType dflags ft
       pure t
 
@@ -60,7 +62,7 @@ findHoleType = takeUntilP (\s -> isPrefixOf "Or perhaps" s || isPrefixOf "Where:
              . drop (length preamble)
              . dropUntil (isPrefixOf preamble)
   where
-    preamble = "Found hole: _dyna_type :: "
+    preamble = "_dyna_type :: "
 
 
 getHoleType :: DynFlags -> String -> Either String (Anns, Located (HsType GhcPs))
