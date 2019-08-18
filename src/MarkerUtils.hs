@@ -10,6 +10,8 @@ import Data.Data.Lens
 import GenericOrphans ()
 import MarkerLenses
 import Types
+import Name hiding (varName)
+import Var
 
 
 pattern Underway :: Integer -> Type -> Expr -> Expr
@@ -74,6 +76,10 @@ prevUnderwayC n = locate isUnderway
 matchOcc :: String -> Expr -> Bool
 matchOcc occ (HsVar _ (L _ (Unqual occ'))) = mkVarOcc occ == occ'
 matchOcc _ _ = False
+
+matchVar :: String -> HsExpr GhcTc -> Bool
+matchVar occ (HsVar _ (L _ var)) = occNameString (nameOccName (varName var)) == occ
+matchVar _ _ = False
 
 locate :: (Data a, Data b) => (b -> Bool) -> Traversal' a b
 locate f = biplate . deepOf uniplate (taking 1 $ filtered f)

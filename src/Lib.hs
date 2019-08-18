@@ -3,7 +3,8 @@
 
 module Lib where
 
-import           Brick
+import           Bag
+import           Brick hiding (loc)
 import qualified Brick.Main as M
 import qualified Brick.Types as T
 import           Brick.Widgets.Border
@@ -12,11 +13,12 @@ import           Brick.Widgets.Edit
 import           Control.Lens
 import           Control.Monad
 import           Data.Maybe
-import           GHC (SrcSpan)
+import           GHC (SrcSpan, tm_typechecked_source)
 import qualified Graphics.Vty as V
 import           HIE.Bios
 import           Language.Haskell.GHC.ExactPrint
 import           Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
+import           MarkerLenses
 import           MarkerUtils
 import           Outputable hiding ((<+>))
 import           Polysemy
@@ -31,7 +33,7 @@ import           Sem.TypeInfo
 import           Sem.Typecheck
 import           Tactics
 import           Types
-
+import           Var
 
 
 pprToString :: DynFlags -> SDoc -> String
@@ -199,5 +201,14 @@ main = do
        . runFillHole
        . holeTypeToGhcid
        $ do
-    void $ defaultMain app $ defData
+    (l, _) <- embed $ loadFile @Ghc ("src/Test.hs", "src/Test.hs")
+    let Just l' = l
+    pprTraceM "hi" $ ppr $ bagToList (tm_typechecked_source l')
+                       ^.. locate (matchVar "_hole")
+                         . _Ctor' @"HsVar"
+                         . position @2
+                         . loc
+                         . to varType
+
+    -- void $ defaultMain app $ defData
 

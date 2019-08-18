@@ -20,3 +20,12 @@ deriving instance Generic (HsLit GhcPs)
 deriving instance Generic (HsModule GhcPs)
 deriving instance Generic IntegralLit
 deriving instance Generic OverLitVal
+
+deriving instance Generic (HsWildCardBndrs GhcTc t)
+deriving instance Generic (HsExpr GhcTc)
+deriving instance Generic (HsDecl GhcTc)
+deriving instance Generic (ConDecl GhcTc)
+deriving instance Generic (TyClDecl GhcTc)
+deriving instance Generic (HsOverLit GhcTc)
+deriving instance Generic (HsLit GhcTc)
+deriving instance Generic (HsModule GhcTc)
