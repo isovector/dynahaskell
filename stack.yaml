@@ -9,3 +9,12 @@ extra-deps:
 - posix-pty-0.2.1.1@sha256:f1e54f10c49d9f27dba33539391659d2daa4874badc1554ffc6c25b329ef1db6,2161
 - ../brick
 - refinery-0.1.0.0
+
+setup-info:
+  ghc:
+    linux64-custom-dyna4-tinfo6:
+      8.6.5:
+        url: "https://downloads.haskell.org/~ghc/8.4.4/ghc-8.4.4-x86_64-deb9-linux-dwarf.tar.xz"
+        sha256: f9cac6e402c71d7251f2e22f412fb4abd72c64f34481a1e548cd7f6ff2352a07
+
+ghc-variant: custom-dyna4

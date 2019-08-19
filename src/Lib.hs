@@ -3,6 +3,7 @@
 
 module Lib where
 
+import TcRnTypes
 import           Bag
 import           Brick hiding (loc)
 import qualified Brick.Main as M
@@ -34,6 +35,7 @@ import           Sem.Typecheck
 import           Tactics
 import           Types
 import           Var
+import           Id
 
 
 pprToString :: DynFlags -> SDoc -> String
@@ -196,19 +198,21 @@ main = do
        . runInputSem @Anns get
        . evalState z
        . runInputSem @LModule get
-       . runGhcid
-       . runTypeInfo
-       . runFillHole
-       . holeTypeToGhcid
+       -- . runGhcid
+       -- . runTypeInfo
+       -- . runFillHole
+       -- . holeTypeToGhcid
        $ do
     (l, _) <- embed $ loadFile @Ghc ("src/Test.hs", "src/Test.hs")
     let Just l' = l
-    pprTraceM "hi" $ ppr $ bagToList (tm_typechecked_source l')
-                       ^.. locate (matchVar "_hole")
-                         . _Ctor' @"HsVar"
-                         . position @2
-                         . loc
-                         . to varType
+        binds = bagToList (tm_typechecked_source l')
+          ^.. locate (matchVar "_hole") . _Ctor' @"HsVar" . position @1 . traverse
+    pprTraceM "hi" $ vcat $ fmap (\(TcIdBndr b _) -> ppr $ (idName b, idType b) ) binds
+                       -- ^.. locate (matchVar "_hole")
+                       --   . _Ctor' @"HsVar"
+                       --   . position @2
+                       --   . loc
+                       --   . to varType
 
     -- void $ defaultMain app $ defData
 
