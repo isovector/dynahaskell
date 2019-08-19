@@ -23,7 +23,6 @@ import  Refinery.Tactic
 import  Data.Maybe
 import  Control.Lens
 import  MarkerUtils
-import  Sem.TypeInfo
 import  Control.Monad.Except
 
 import Outputable
@@ -45,7 +44,6 @@ type Tactic r = Tactics r ()
 type TacticMems r = Members
   '[ Input FreshInt
    , Input DynFlags
-   , TypeInfo
    ] r
 
 assumption :: Tactic r
@@ -87,22 +85,22 @@ intro n = rule $ \(Judgement hy g) ->
 split :: TacticMems r => Tactic r
 split = rule $ \(Judgement hy g) ->
   case stypeConApps g of
-    Nothing -> throwError $ GoalMismatch "split" g
-    Just (tc, apps) -> do
-      tci <- sem $ typeInfo tc
-      case tciCons tci of
-        [dc] -> do
-          let args = fmap unLoc . hsConDeclArgTys $ con_args dc
-              subs = zip (tciVars tci) apps
-              -- need to substHole the tciVars with apps in this ^
-              name = head $ getConNames dc
-          case traverse toSType args of
-            Just sts -> do
-              sgs <- traverse (subgoal . Judgement hy . substTVars subs) sts
-              pure $ foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec . noLoc)
-                            (HsVar NoExt name) sgs
-            Nothing -> throwError $ GoalMismatch "split" g
-        _ -> throwError $ GoalMismatch "split" g
+    _ -> throwError $ GoalMismatch "split" g
+    -- Just (tc, apps) -> do
+    --   tci <- sem $ typeInfo tc
+    --   case tciCons tci of
+    --     [dc] -> do
+    --       let args = fmap unLoc . hsConDeclArgTys $ con_args dc
+    --           subs = zip (tciVars tci) apps
+    --           -- need to substHole the tciVars with apps in this ^
+    --           name = head $ getConNames dc
+    --       case traverse toSType args of
+    --         Just sts -> do
+    --           sgs <- traverse (subgoal . Judgement hy . substTVars subs) sts
+    --           pure $ foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec . noLoc)
+    --                         (HsVar NoExt name) sgs
+    --         Nothing -> throwError $ GoalMismatch "split" g
+    --     _ -> throwError $ GoalMismatch "split" g
 
 
 

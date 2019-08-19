@@ -31,13 +31,10 @@ dependencies:
 - polysemy
 - polysemy-plugin
 - polysemy-zoo
-- chiasma
-- ghcid
 - vty
 - refinery
 - transformers
 - mtl
-- extra
 - hie-bios
 
 default-extensions:
