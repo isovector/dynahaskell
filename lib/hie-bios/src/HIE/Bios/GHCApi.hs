@@ -37,7 +37,6 @@ import System.FilePath
 
 import qualified HIE.Bios.Gap as Gap
 import HIE.Bios.Types
-import qualified Crypto.Hash.SHA1 as H
 import qualified Data.ByteString.Char8 as B
 import Data.ByteString.Base16
 import Data.List
@@ -115,12 +114,6 @@ throwCradleError = liftIO . throwIO . CradleError
 cacheDir :: String
 cacheDir = "haskell-ide-engine"
 
-clearInterfaceCache :: FilePath -> IO ()
-clearInterfaceCache fp = do
-  cd <- getCacheDir fp
-  res <- doesPathExist cd
-  when res (removeDirectoryRecursive cd)
-
 getCacheDir :: FilePath -> IO FilePath
 getCacheDir fp = getXdgDirectory XdgCache (cacheDir ++ "/" ++ fp)
 
@@ -131,11 +124,9 @@ initSessionWithMessage :: (GhcMonad m)
 initSessionWithMessage msg CompilerOptions {..} = do
     df <- G.getSessionDynFlags
 
-    let opts_hash = B.unpack $ encode $ H.finalize $ H.updates H.init (map B.pack ghcOptions)
-    fp <- liftIO $ getCacheDir opts_hash
+    fp <- liftIO $ getCacheDir "hi"
     -- For now, clear the cache initially rather than persist it across
     -- sessions
-    liftIO $ clearInterfaceCache opts_hash
     (df', targets) <- addCmdOpts ghcOptions df
     void $ G.setSessionDynFlags
       (disableOptimisation
