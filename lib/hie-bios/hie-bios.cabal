@@ -54,18 +54,6 @@ Library
   if impl(ghc < 8.2)
     Build-Depends:      ghc-boot
 
-Executable hie-bios
-  Default-Language:     Haskell2010
-  Main-Is:              Main.hs
-  Other-Modules:        Paths_hie_bios
-  GHC-Options:          -Wall
-  HS-Source-Dirs:       exe
-  Build-Depends:        base >= 4.9 && < 5
-                      , directory
-                      , filepath
-                      , ghc
-                      , hie-bios
-
 Source-Repository head
   Type:                 git
   Location:             git://github.com/mpickering/hie-bios.git
