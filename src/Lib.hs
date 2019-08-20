@@ -32,6 +32,8 @@ import           Tactics
 import           Types
 import           Var
 import           Id
+import DynFlags
+import Polysemy.IO
 
 
 pprToString :: DynFlags -> SDoc -> String
@@ -41,21 +43,24 @@ pprToString d = pprDebugAndThen d id empty
 parseModuleFromString
   :: FilePath
   -> String
-  -> IO (Either (SrcSpan, String) (DynFlags, (Anns, LModule)))
+  -> IO (Either (SrcSpan, String) (DynFlags, Anns))
 parseModuleFromString fp s = ghcWrapper $ do
   dflags <- initDynFlagsPure fp s
-  return $ fmap (dflags, ) $ parseModuleFromStringInternal dflags fp s
+  pure . fmap ((dflags, ) . fst)
+       $ parseModuleFromStringInternal dflags fp s
 
 
 main :: IO ()
 main = do
   contents <- readFile "src/Test.hs"
-  Right (dflags, (anns, z)) <- parseModuleFromString "src/Lib.hs" contents
+  Right (dflags, anns) <- parseModuleFromString "src/Lib.hs" contents
 
   runGHC
+       . runEmbedPure (runTransform
        . traceToIO
        . runInputConst dflags
        $ do
+    flags <- embed @Ghc $ getDynFlags
     (l, _) <- embed $ loadFile @Ghc ("src/Test.hs", "src/Test.hs")
     let Just l' = l
         binds = bagToList (tm_typechecked_source l')
