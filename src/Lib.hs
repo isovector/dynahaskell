@@ -54,7 +54,7 @@ main = do
        . runAnno
        . runHoleInfo
        $ do
-    holes <- holeInfo $ todo 0
+    holes <- holeInfo (todo 0) src
     for_ holes $ \(goal, scope) -> do
       expr <- tactic goal (fmap (first nameOccName) scope) $ do
         destruct $ mkVarOcc "x"
