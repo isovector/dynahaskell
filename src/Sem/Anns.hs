@@ -2,16 +2,13 @@
 
 module Sem.Anns where
 
-import Data.Foldable
-import Control.Monad
 import Control.Lens
+import Control.Monad
+import Language.Haskell.GHC.ExactPrint
 import Polysemy
 import Polysemy.State
-import Language.Haskell.GHC.ExactPrint
-import Types
-import Data.Monoid
 import Printers
-import qualified Data.Map as M
+import Types
 
 
 data Anno m a where

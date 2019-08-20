@@ -3,7 +3,6 @@
 
 module Lib where
 
-import Control.Lens (taking)
 import Data.Foldable
 import Data.Bifunctor
 import DynFlags
@@ -55,13 +54,16 @@ main = do
        . stateAndInput lmod
        . memoizeTypeStuff
        . runAnno
+       . runFresh @Integer
        . runHoleInfo
-       . runFresh
        $ do
-    holes <- holeInfo nextTodo
+    holes <- holeInfo $ todo 0
     for_ holes $ \(goal, scope) -> do
-      expr <- tactic goal (fmap (first nameOccName) scope) (destruct $ mkVarOcc "x")
-      spliceTree (taking 1 nextTodo) (fromJust expr)
+      expr <- tactic goal (fmap (first nameOccName) scope) $ do
+        destruct $ mkVarOcc "x"
+        split
+        assumption
+      spliceTree (todo 0) $ fromJust expr
 
     lmod' <- input @LModule
     anns' <- input

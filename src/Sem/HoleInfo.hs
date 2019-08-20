@@ -15,6 +15,7 @@ import GHC
 import Sem.View
 import Id
 import Bag
+import Sem.Fresh
 
 data HoleInfo m a where
   HoleInfo :: Traversal' LModule LExpr -> HoleInfo m [(Type, [(Name, Type)])]
@@ -23,12 +24,13 @@ makeSem ''HoleInfo
 
 
 runHoleInfo
-    :: Members '[View (Maybe TypecheckedModule), State LModule, Anno] r
+    :: Members '[View (Maybe TypecheckedModule), State LModule, Anno, Fresh Integer] r
     => Sem (HoleInfo ': r) a
     -> Sem r a
 runHoleInfo = interpret \case
   HoleInfo l -> do
-    let hole = mkHole "_hole"
+    i <- fresh
+    let hole = mkVar $ "_hole" ++ show i
     t <- get
     spliceTree l $ noLoc hole
     v <- see
@@ -37,7 +39,7 @@ runHoleInfo = interpret \case
         Nothing -> pure []
         Just tc -> do
           let hole_info = bagToList (tm_typechecked_source tc)
-                      ^.. locate (matchVar "_hole")
+                      ^.. locate (matchVar $ "_hole" ++ show i)
                         . _Ctor' @"HsVar"
                         . to (id &&& id)
                         . alongside (position @2 . loc . to idType)

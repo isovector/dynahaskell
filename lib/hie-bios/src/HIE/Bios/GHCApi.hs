@@ -20,13 +20,12 @@ import CoreMonad (liftIO)
 import Exception (ghandle, SomeException(..), ExceptionMonad(..), throwIO, Exception(..))
 import GHC (Ghc, DynFlags(..), GhcLink(..), HscTarget(..), LoadHowMuch(..), GhcMonad, GhcT)
 import qualified GHC as G
-import qualified Outputable as G
 import qualified MonadUtils as G
 import qualified HscMain as G
 import qualified GhcMake as G
 import DynFlags
 
-import Control.Monad (void, when)
+import Control.Monad (void)
 import System.Exit (exitSuccess, ExitCode(..))
 import System.IO (hPutStr, hPrint, stderr)
 import System.IO.Unsafe (unsafePerformIO)
@@ -37,8 +36,6 @@ import System.FilePath
 
 import qualified HIE.Bios.Gap as Gap
 import HIE.Bios.Types
-import qualified Data.ByteString.Char8 as B
-import Data.ByteString.Base16
 import Data.List
 
 ----------------------------------------------------------------

@@ -1,6 +1,6 @@
 module Markers where
 
-todo :: a
+todo :: Int -> a
 todo = error "todo"
 
 solve :: a
