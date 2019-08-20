@@ -31,12 +31,12 @@ import           Polysemy.Trace
 import           Printers
 import           Sem.Anns
 import           Sem.Ghc
+import           Sem.HoleInfo
 import           Sem.View
 import           Tactics
 import           TcRnTypes
 import           Types
 import           Var
-import Sem.HoleInfo
 
 
 pprToString :: DynFlags -> SDoc -> String
