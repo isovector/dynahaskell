@@ -36,6 +36,7 @@ dependencies:
 - transformers
 - mtl
 - hie-bios
+- semigroupoids
 
 default-extensions:
 - FlexibleContexts

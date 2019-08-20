@@ -56,6 +56,7 @@ data TacticError
 
 type Tactics r = TacticT Judgement LExpr (ProvableT Judgement (ExceptT TacticError (Sem r)))
 type Tactic r = Tactics r ()
+type Rule r = RuleT Judgement LExpr (ProvableT Judgement (ExceptT TacticError (Sem r))) LExpr
 
 type TacticMems r = Members
   '[ Fresh Int
@@ -99,36 +100,21 @@ intro n = rule $ \(Judgement hy g) ->
 split :: TacticMems r => Tactic r
 split = rule $ \(Judgement hy g) ->
   case splitTyConApp_maybe $ unCType g of
-    Just (tc, apps) -> do
+    Just (tc, apps) ->
       case tyConDataCons tc of
-        [dc] -> do
-          let args = dataConInstArgTys dc apps
-          sgs <- traverse (subgoal . Judgement hy . CType) args
-          pure $ noLoc $ foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec) (HsVar NoExt $ noLoc $ Unqual $ nameOccName $ dataConName dc) sgs
+        [dc] -> buildDataCon hy dc apps
         _ -> throwError $ GoalMismatch "split" g
     Nothing -> throwError $ GoalMismatch "split" g
 
 
-
-      -- mv <- sem $ see @(Maybe TypecheckedModule)
-      -- case mv of
-      --   Just v -> do
-      --     _
-
-    --   tci <- sem $ typeInfo tc
-    --   case tciCons tci of
-    --     [dc] -> do
-    --       let args = fmap unLoc . hsConDeclArgTys $ con_args dc
-    --           subs = zip (tciVars tci) apps
-    --           -- need to substHole the tciVars with apps in this ^
-    --           name = head $ getConNames dc
-    --       case traverse toSType args of
-    --         Just sts -> do
-    --           sgs <- traverse (subgoal . Judgement hy . substTVars subs) sts
-    --           pure $ foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec . noLoc)
-    --                         (HsVar NoExt name) sgs
-    --         Nothing -> throwError $ GoalMismatch "split" g
-    --     _ -> throwError $ GoalMismatch "split" g
+buildDataCon :: [(OccName, CType)] -> DataCon -> [Type] -> Rule r
+buildDataCon hy dc apps = do
+  let args = dataConInstArgTys dc apps
+  sgs <- traverse (subgoal . Judgement hy . CType) args
+  pure . noLoc
+       . foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec)
+                (HsVar NoExt $ noLoc $ Unqual $ nameOccName $ dataConName dc)
+       $ sgs
 
 
 
@@ -142,12 +128,6 @@ syntactically str = do
     Left _ -> error $ "you called syntactically badly, on " ++ str
     Right (_, expr) -> do
       pure expr
-
--- -- substTVars :: [(TVar, Type)] -> Type -> Type
--- -- substTVars subs (STyVar t) = fromMaybe (error "substTVars") $ lookup t subs
--- -- substTVars _ t@(STyCon _) = t
--- -- substTVars subs (SArrTy a b) = SArrTy (substTVars subs a) (substTVars subs b)
--- -- substTVars subs (SAppTy a b) = SAppTy (substTVars subs a) (substTVars subs b)
 
 substHole :: [(String, LExpr)] -> LExpr -> LExpr
 substHole = flip $ foldr $ \(s, e) -> locate (matchOcc s) .~ e
