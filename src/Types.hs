@@ -18,6 +18,7 @@ module Types
   , field'
   , module BasicTypes
   , Anns
+  , Type
   ) where
 
 import BasicTypes

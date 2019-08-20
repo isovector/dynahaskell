@@ -3,40 +3,26 @@
 
 module Lib where
 
-import           Bag
-import           Brick hiding (loc)
-import qualified Brick.Main as M
-import qualified Brick.Types as T
-import           Brick.Widgets.Border
-import           Brick.Widgets.Border.Style
-import           Brick.Widgets.Edit
-import           Control.Lens
-import           Control.Monad
-import           Data.Maybe
-import           DynFlags
-import           GHC (SrcSpan, TypecheckedModule (..))
-import qualified Graphics.Vty as V
-import           HIE.Bios
-import           Id
-import           Language.Haskell.GHC.ExactPrint
-import           Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
-import           MarkerLenses
-import           MarkerUtils
-import           Outputable hiding ((<+>), trace)
-import           Polysemy
-import           Polysemy.IO
-import           Polysemy.Input
-import           Polysemy.State
-import           Polysemy.Trace
-import           Printers
-import           Sem.Anns
-import           Sem.Ghc
-import           Sem.HoleInfo
-import           Sem.View
-import           Tactics
-import           TcRnTypes
-import           Types
-import           Var
+import DynFlags
+import GHC (SrcSpan, TypecheckedModule (..))
+import HIE.Bios
+import Language.Haskell.GHC.ExactPrint
+import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
+import MarkerUtils
+import Outputable hiding ((<+>), trace)
+import Polysemy
+import Polysemy.Input
+import Polysemy.State
+import Polysemy.Trace
+import Sem.Anns
+import Sem.Ghc
+import Sem.HoleInfo
+import Sem.View
+import Sem.Fresh
+import Types
+import Tactics
+
+import Data.Maybe
 
 
 pprToString :: DynFlags -> SDoc -> String
@@ -56,7 +42,7 @@ parseModuleFromString fp s = ghcWrapper $ do
 main :: IO ()
 main = do
   contents <- readFile "src/Test.hs"
-  Right (dflags, (anns, lmod)) <- parseModuleFromString "src/Lib.hs" contents
+  Right (dflags, (anns, lmod)) <- parseModuleFromString "src/Test.hs" contents
 
   runGHC
        . traceToIO
@@ -66,9 +52,14 @@ main = do
        . memoizeTypeStuff
        . runAnno
        . runHoleInfo
+       . runFresh
        $ do
     hi <- holeInfo $ nextSolve
-    pprTraceM "hi" $ ppr hi
+    expr <- tactic  (fst $ head hi) (deepen 10)
+    spliceTree nextSolve (fromJust expr)
+
+    pprTraceM "hi" . ppr =<< get @LModule
+
 
 
 memoizeTypeStuff
