@@ -1,5 +1,6 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE TupleSections   #-}
+{-# LANGUAGE ConstraintKinds           #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE TupleSections             #-}
 
 module Lib where
 
@@ -13,7 +14,6 @@ import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import MarkerUtils
 import Name
-import Outputable hiding ((<+>), trace)
 import Polysemy
 import Polysemy.Input
 import Polysemy.State
@@ -25,10 +25,10 @@ import Sem.HoleInfo
 import Sem.Typecheck
 import Tactics
 import Types
+import UI
+import Brick.Main
+import Control.Monad
 
-
-pprToString :: DynFlags -> SDoc -> String
-pprToString d = pprDebugAndThen d id empty
 
 
 parseFileModule
@@ -47,23 +47,28 @@ main = do
 
   runGHC
        . traceToIO
+       . runInputConst dflags
        . runFresh @Integer
        . runInputConst dflags
        . runTypechecker
        . stateAndInput src
        . runAnno
        $ do
+    let l = todo 0
     holes <- holeInfo (todo 0) src
-    for_ holes $ \(goal, scope) -> do
-      expr <- tactic goal (fmap (first nameOccName) scope) $ do
-        destruct $ mkVarOcc "x"
-        split
-        assumption
-      src' <- spliceTree (todo 0) (fromJust expr) src
-      put src'
+    void $ defaultMain app $ defData l (listToMaybe holes) src
 
-    Source anns' lmod' <- get
-    trace $ exactPrint lmod' anns'
+
+--     for_ holes $ \(goal, scope) -> do
+--       expr <- tactic goal (fmap (first nameOccName) scope) $ do
+--         destruct $ mkVarOcc "x"
+--         split
+--         assumption
+--       src' <- spliceTree (todo 0) (fromJust expr) src
+--       put src'
+
+--     Source anns' lmod' <- get
+--     trace $ exactPrint lmod' anns'
 
 
 

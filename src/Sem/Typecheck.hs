@@ -6,7 +6,7 @@ import Types
 import Polysemy
 import GHC
 import HIE.Bios
-import Language.Haskell.GHC.ExactPrint
+import Printers
 
 
 data Typecheck m a where
@@ -24,7 +24,4 @@ runTypechecker = interpret \case
     embed $ writeFile "/tmp/dyna.hs" $ prettySource src
     fmap fst $ embed $ loadFile @Ghc ("/tmp/dyna.hs", "/tmp/dyna.hs")
 
-
-prettySource :: Source -> String
-prettySource (Source anns lmod) = exactPrint lmod anns
 
