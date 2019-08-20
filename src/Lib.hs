@@ -63,7 +63,9 @@ main = do
       expr <- tactic goal (fmap (first nameOccName) scope) (destruct $ mkVarOcc "x")
       spliceTree (taking 1 nextTodo) (fromJust expr)
 
-    pprTraceM "hi" . ppr =<< get @LModule
+    lmod' <- input @LModule
+    anns' <- input
+    trace $ exactPrint lmod' anns'
 
 
 memoizeTypeStuff
