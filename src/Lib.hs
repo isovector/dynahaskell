@@ -22,7 +22,7 @@ import           Language.Haskell.GHC.ExactPrint
 import           Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import           MarkerLenses
 import           MarkerUtils
-import           Outputable hiding ((<+>))
+import           Outputable hiding ((<+>), trace)
 import           Polysemy
 import           Polysemy.IO
 import           Polysemy.Input
@@ -36,6 +36,7 @@ import           Tactics
 import           TcRnTypes
 import           Types
 import           Var
+import Sem.HoleInfo
 
 
 pprToString :: DynFlags -> SDoc -> String
@@ -64,16 +65,14 @@ main = do
        . stateAndInput lmod
        . memoizeTypeStuff
        . runAnno
+       . runHoleInfo
        $ do
-    (l, _) <- embed $ loadFile @Ghc ("src/Test.hs", "src/Test.hs")
-    let Just l' = l
-        binds = bagToList (tm_typechecked_source l')
-          ^.. locate (matchVar "_hole") . _Ctor' @"HsVar" . position @1 . traverse
-    pprTraceM "hi" $ vcat $ fmap (\(TcIdBndr b _) -> ppr $ (idName b, idType b) ) binds
+    hi <- holeInfo $ nextSolve
+    pprTraceM "hi" $ ppr hi
 
 
 memoizeTypeStuff
-    :: Members '[Input Anns, Embed Ghc, Embed IO, State LModule] r
+    :: Members '[Input Anns, Embed Ghc, Embed IO, State LModule, Trace] r
     => Sem (View (Maybe TypecheckedModule) ': r) a
     -> Sem r a
 memoizeTypeStuff = viewToState $ \lmod -> do

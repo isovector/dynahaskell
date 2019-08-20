@@ -9,7 +9,7 @@ import Data.Coerce
 
 
 data View v m a where
-  View :: View v m v
+  See :: View v m v
 
 makeSem ''View
 
@@ -31,7 +31,7 @@ viewToState f m = do
       )
     $ reinterpret @(View v) @(State' (Bool, v))
       ( \case
-          View -> do
+          See -> do
             (dirty, v) <- send $ State' Get
             case dirty of
               True -> do

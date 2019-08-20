@@ -12,8 +12,8 @@ import Name hiding (varName)
 import Var
 
 
-matchOcc :: String -> Expr -> Bool
-matchOcc occ (HsVar _ (L _ (Unqual occ'))) = mkVarOcc occ == occ'
+matchOcc :: String -> LExpr -> Bool
+matchOcc occ (L _ (HsVar _ (L _ (Unqual occ')))) = mkVarOcc occ == occ'
 matchOcc _ _ = False
 
 matchVar :: String -> HsExpr GhcTc -> Bool
@@ -23,7 +23,7 @@ matchVar _ _ = False
 locate :: (Data a, Data b) => (b -> Bool) -> Traversal' a b
 locate f = biplate . deepOf uniplate (taking 1 $ filtered f)
 
-nextSolve :: Data a => Traversal' a Expr
+nextSolve :: Data a => Traversal' a LExpr
 nextSolve = locate $ matchOcc "solve"
 
 mkHole :: String -> Expr

@@ -5,6 +5,7 @@ module Printers where
 import Generics.SYB hiding (Generic)
 import Language.Haskell.GHC.ExactPrint
 import GHC
+import Outputable
 
 
 
@@ -18,7 +19,10 @@ ok :: Data a => a -> Transform a
 ok = everywhereM (mkM mkSrc)
   where
     mkSrc :: SrcSpan -> Transform SrcSpan
-    mkSrc s | s == noSrcSpan = uniqueSrcSpanT
+    mkSrc s | s == noSrcSpan = do
+                u <- uniqueSrcSpanT
+                pprTraceM "wat" $ ppr u
+                pure u
             | otherwise = pure s
 
 
