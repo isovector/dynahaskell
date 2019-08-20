@@ -21,20 +21,25 @@ viewToState
     -> Sem (View v ': r) a
     -> Sem r a
 viewToState f m = do
-  s0 <- get
-  v0 <- f s0
-  evalState' @v v0
-    $ intercept @(State s) @(State' v ': r)
+  evalState' (True, undefined)
+    $ intercept @(State s)
       ( \case
         Get -> get
         Put s -> do
           put s
-          s' <- raise $ f s
-          send $ State' $ Put s'
+          send $ State' $ Put (True, undefined)
       )
-    $ reinterpret @(View v) @(State' v)
+    $ reinterpret @(View v) @(State' (Bool, v))
       ( \case
-          View -> send $ State' Get
+          View -> do
+            (dirty, v) <- send $ State' Get
+            case dirty of
+              True -> do
+                s <- get
+                v' <- raise $ f s
+                send $ State' $ Put (False, v')
+                pure v'
+              False -> pure v
       )
     $ m
 
