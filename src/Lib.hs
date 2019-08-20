@@ -56,7 +56,6 @@ main = do
   Right (dflags, anns) <- parseModuleFromString "src/Lib.hs" contents
 
   runGHC
-       . runEmbedPure (runTransform
        . traceToIO
        . runInputConst dflags
        $ do

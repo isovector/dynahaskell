@@ -55,6 +55,7 @@ default-extensions:
 - TypeOperators
 - LambdaCase
 - BlockArguments
+- RankNTypes
 
 ghc-options:
   - -Wall
