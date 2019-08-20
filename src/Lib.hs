@@ -61,7 +61,6 @@ main = do
     pprTraceM "hi" . ppr =<< get @LModule
 
 
-
 memoizeTypeStuff
     :: Members '[Input Anns, Embed Ghc, Embed IO, State LModule, Trace] r
     => Sem (View (Maybe TypecheckedModule) ': r) a

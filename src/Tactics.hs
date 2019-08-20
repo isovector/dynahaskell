@@ -7,26 +7,31 @@ module Tactics
   ( tactic
   , auto
   , one
-  -- , split
+  , split
   , deepen
   , assumption
   , intro
   ) where
 
+import Control.Lens
+import Control.Monad.Except
+import Data.Function
 import Data.List
-import Polysemy
-import Types
+import Data.Maybe
+import GHC (TypecheckedModule (..))
 import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
+import MarkerUtils
+import Polysemy
 import Polysemy.Input
 import Refinery.Tactic
 import Sem.Fresh
-import Data.Maybe
-import Control.Lens
-import MarkerUtils
-import Control.Monad.Except
+import Sem.View
+import TyCon
+import DataCon
 import TyCoRep
-import TcType
-import Data.Function
+import Type
+import Types
+import Name hiding (varName)
 
 import Outputable
 
@@ -55,6 +60,7 @@ type Tactic r = Tactics r ()
 type TacticMems r = Members
   '[ Fresh Int
    , Input DynFlags
+   , View (Maybe TypecheckedModule)
    ] r
 
 assumption :: Tactic r
@@ -90,25 +96,39 @@ intro n = rule $ \(Judgement hy g) ->
     _ -> throwError $ GoalMismatch "intro" g
 
 
--- split :: TacticMems r => Tactic r
--- split = rule $ \(Judgement hy g) ->
---   case stypeConApps g of
---     _ -> throwError $ GoalMismatch "split" g
---     -- Just (tc, apps) -> do
---     --   tci <- sem $ typeInfo tc
---     --   case tciCons tci of
---     --     [dc] -> do
---     --       let args = fmap unLoc . hsConDeclArgTys $ con_args dc
---     --           subs = zip (tciVars tci) apps
---     --           -- need to substHole the tciVars with apps in this ^
---     --           name = head $ getConNames dc
---     --       case traverse toSType args of
---     --         Just sts -> do
---     --           sgs <- traverse (subgoal . Judgement hy . substTVars subs) sts
---     --           pure $ foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec . noLoc)
---     --                         (HsVar NoExt name) sgs
---     --         Nothing -> throwError $ GoalMismatch "split" g
---     --     _ -> throwError $ GoalMismatch "split" g
+split :: TacticMems r => Tactic r
+split = rule $ \(Judgement hy g) ->
+  case splitTyConApp_maybe $ unCType g of
+    Just (tc, apps) -> do
+      case tyConDataCons tc of
+        [dc] -> do
+          let args = dataConInstArgTys dc apps
+          sgs <- traverse (subgoal . Judgement hy . CType) args
+          pure $ noLoc $ foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec) (HsVar NoExt $ noLoc $ Unqual $ nameOccName $ dataConName dc) sgs
+        _ -> throwError $ GoalMismatch "split" g
+    Nothing -> throwError $ GoalMismatch "split" g
+
+
+
+      -- mv <- sem $ see @(Maybe TypecheckedModule)
+      -- case mv of
+      --   Just v -> do
+      --     _
+
+    --   tci <- sem $ typeInfo tc
+    --   case tciCons tci of
+    --     [dc] -> do
+    --       let args = fmap unLoc . hsConDeclArgTys $ con_args dc
+    --           subs = zip (tciVars tci) apps
+    --           -- need to substHole the tciVars with apps in this ^
+    --           name = head $ getConNames dc
+    --       case traverse toSType args of
+    --         Just sts -> do
+    --           sgs <- traverse (subgoal . Judgement hy . substTVars subs) sts
+    --           pure $ foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec . noLoc)
+    --                         (HsVar NoExt name) sgs
+    --         Nothing -> throwError $ GoalMismatch "split" g
+    --     _ -> throwError $ GoalMismatch "split" g
 
 
 
@@ -148,7 +168,7 @@ hush _ = Nothing
 
 auto :: TacticMems r => Tactic r
 auto = do
-  intro "x" <!> assumption
+  intro "x" <!> assumption <!> split
   auto
 
 deepen :: TacticMems r => Int -> Tactic r
@@ -158,7 +178,7 @@ deepen depth = do
   deepen $ depth - 1
 
 one :: TacticMems r => Tactic r
-one = intro "x" <!> assumption <!> pure ()
+one = intro "x" <!> assumption <!> split <!> pure ()
 
 
 instance MonadExtract LExpr (ProvableT Judgement (ExceptT TacticError (Sem r))) where
