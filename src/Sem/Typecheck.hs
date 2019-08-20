@@ -20,8 +20,11 @@ runTypechecker
     => Sem (Typecheck ': r) a
     -> Sem r a
 runTypechecker = interpret \case
-  Typecheck (Source anns lmod) -> do
-    let printed = exactPrint lmod anns
-    embed $ writeFile "/tmp/dyna.hs" printed
+  Typecheck src -> do
+    embed $ writeFile "/tmp/dyna.hs" $ prettySource src
     fmap fst $ embed $ loadFile @Ghc ("/tmp/dyna.hs", "/tmp/dyna.hs")
+
+
+prettySource :: Source -> String
+prettySource (Source anns lmod) = exactPrint lmod anns
 

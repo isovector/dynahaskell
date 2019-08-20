@@ -52,7 +52,6 @@ main = do
        . runTypechecker
        . stateAndInput src
        . runAnno
-       . runHoleInfo
        $ do
     holes <- holeInfo (todo 0) src
     for_ holes $ \(goal, scope) -> do
@@ -65,6 +64,7 @@ main = do
 
     Source anns' lmod' <- get
     trace $ exactPrint lmod' anns'
+
 
 
 stateAndInput :: s -> Sem (Input s ': State s ': r) a -> Sem r a
