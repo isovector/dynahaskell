@@ -3,6 +3,9 @@
 
 module Lib where
 
+import Control.Lens (taking)
+import Data.Foldable
+import Data.Bifunctor
 import DynFlags
 import GHC (SrcSpan, TypecheckedModule (..))
 import HIE.Bios
@@ -21,6 +24,7 @@ import Sem.View
 import Sem.Fresh
 import Types
 import Tactics
+import Name
 
 import Data.Maybe
 
@@ -54,9 +58,10 @@ main = do
        . runHoleInfo
        . runFresh
        $ do
-    hi <- holeInfo $ nextSolve
-    expr <- tactic  (fst $ head hi) (deepen 10)
-    spliceTree nextSolve (fromJust expr)
+    holes <- holeInfo nextTodo
+    for_ holes $ \(goal, scope) -> do
+      expr <- tactic goal (fmap (first nameOccName) scope) (destruct $ mkVarOcc "x")
+      spliceTree (taking 1 nextTodo) (fromJust expr)
 
     pprTraceM "hi" . ppr =<< get @LModule
 

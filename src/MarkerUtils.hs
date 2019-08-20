@@ -23,8 +23,8 @@ matchVar _ _ = False
 locate :: (Data a, Data b) => (b -> Bool) -> Traversal' a b
 locate f = biplate . deepOf uniplate (taking 1 $ filtered f)
 
-nextSolve :: Data a => Traversal' a LExpr
-nextSolve = locate $ matchOcc "solve"
+nextTodo :: Data a => Traversal' a LExpr
+nextTodo = locate $ matchOcc "todo"
 
 mkHole :: String -> Expr
 mkHole = HsVar NoExt . noLoc . Unqual . mkVarOcc

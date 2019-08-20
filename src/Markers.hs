@@ -1,7 +1,7 @@
 module Markers where
 
 todo :: a
-todo = error "in progress"
+todo = error "todo"
 
 solve :: a
 solve = error "solve"

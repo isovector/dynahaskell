@@ -11,13 +11,15 @@ module Tactics
   , deepen
   , assumption
   , intro
+  , destruct
   ) where
 
+import Data.Bifunctor
+import Data.Traversable
 import Control.Lens
 import Control.Monad.Except
 import Data.Function
 import Data.List
-import Data.Maybe
 import GHC (TypecheckedModule (..))
 import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import MarkerUtils
@@ -32,8 +34,6 @@ import TyCoRep
 import Type
 import Types
 import Name hiding (varName)
-
-import Outputable
 
 newtype CType = CType { unCType :: Type }
 
@@ -97,6 +97,49 @@ intro n = rule $ \(Judgement hy g) ->
     _ -> throwError $ GoalMismatch "intro" g
 
 
+mkName
+    :: Member (Fresh Int) r
+    => MonadTrans t
+    => String
+    -> t (ProvableT Judgement (ExceptT TacticError (Sem r))) OccName
+mkName name = sem $ do
+  u <- fresh @Int
+  pure $ mkVarOcc $ name ++ show u
+
+
+
+destruct :: TacticMems r => OccName -> Tactic r
+destruct term = rule $ \(Judgement hy g) -> do
+  case find ((== term) . fst) hy of
+    Nothing -> throwError $ UndefinedHypothesis term
+    Just (_, t) ->
+      case splitTyConApp_maybe $ unCType t of
+        Nothing -> throwError $ GoalMismatch "destruct" g
+        Just (tc, apps) -> do
+          fmap noLoc
+              $ HsCase NoExt (noLoc $ HsVar NoExt $ noLoc $ Unqual term)
+              . flip (MG NoExt) FromSource
+              . noLoc <$> do
+            for (tyConDataCons tc) $ \dc -> do
+              let args = dataConInstArgTys dc apps
+              names <- for args $ const $ mkName "c"
+
+              let pat :: Pat GhcPs
+                  pat = ConPatIn (noLoc $ Unqual $ nameOccName $ dataConName dc) $ PrefixCon $ do
+                          n <- names
+                          pure $ noLoc $ VarPat NoExt . noLoc $ Unqual n
+
+              sg <- subgoal $ Judgement (zip names $ fmap CType args) g
+
+              pure
+                $ noLoc
+                $ Match NoExt CaseAlt [noLoc pat]
+                $ GRHSs NoExt [noLoc $ GRHS NoExt [] sg]
+                $ noLoc
+                $ EmptyLocalBinds NoExt
+
+
+
 split :: TacticMems r => Tactic r
 split = rule $ \(Judgement hy g) ->
   case splitTyConApp_maybe $ unCType g of
@@ -133,13 +176,13 @@ substHole :: [(String, LExpr)] -> LExpr -> LExpr
 substHole = flip $ foldr $ \(s, e) -> locate (matchOcc s) .~ e
 
 
-tactic :: TacticMems r => Type -> Tactic r -> Sem r (Maybe LExpr)
-tactic ty t =
+tactic :: TacticMems r => Type -> [(OccName, Type)] -> Tactic r -> Sem r (Maybe LExpr)
+tactic ty hy t =
       fmap (fmap fst . hush)
               . runExceptT
               . runProvableT
               . runTacticT t
-              $ Judgement [] $ CType ty
+              $ Judgement (fmap (second CType) hy) $ CType ty
 
 
 hush :: Either a b -> Maybe b
