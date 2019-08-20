@@ -3,6 +3,7 @@
 
 module Lib where
 
+import Control.Monad.IO.Class
 import Data.Bifunctor
 import Data.Foldable
 import Data.Maybe
@@ -30,20 +31,19 @@ pprToString :: DynFlags -> SDoc -> String
 pprToString d = pprDebugAndThen d id empty
 
 
-parseModuleFromString
+parseFileModule
   :: FilePath
-  -> String
-  -> IO (Either (SrcSpan, String) (DynFlags, (Anns, LModule)))
-parseModuleFromString fp s = ghcWrapper $ do
+  -> IO (Either (SrcSpan, String) (DynFlags, Source))
+parseFileModule fp = ghcWrapper $ do
+  s <- liftIO $ readFile "src/Test.hs"
   dflags <- initDynFlagsPure fp s
-  pure . fmap (dflags, )
+  pure . fmap ((dflags, ) . uncurry Source)
        $ parseModuleFromStringInternal dflags fp s
 
 
 main :: IO ()
 main = do
-  contents <- readFile "src/Test.hs"
-  Right (dflags, uncurry Source -> src) <- parseModuleFromString "src/Test.hs" contents
+  Right (dflags, src) <- parseFileModule "src/Test.hs"
 
   runGHC
        . traceToIO
