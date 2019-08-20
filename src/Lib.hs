@@ -3,29 +3,27 @@
 
 module Lib where
 
-import Data.Foldable
 import Data.Bifunctor
+import Data.Foldable
+import Data.Maybe
 import DynFlags
-import GHC (SrcSpan, TypecheckedModule (..))
-import HIE.Bios
+import GHC (SrcSpan)
 import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import MarkerUtils
+import Name
 import Outputable hiding ((<+>), trace)
 import Polysemy
 import Polysemy.Input
 import Polysemy.State
 import Polysemy.Trace
 import Sem.Anns
+import Sem.Fresh
 import Sem.Ghc
 import Sem.HoleInfo
-import Sem.View
-import Sem.Fresh
-import Types
+import Sem.Typecheck
 import Tactics
-import Name
-
-import Data.Maybe
+import Types
 
 
 pprToString :: DynFlags -> SDoc -> String
@@ -45,16 +43,15 @@ parseModuleFromString fp s = ghcWrapper $ do
 main :: IO ()
 main = do
   contents <- readFile "src/Test.hs"
-  Right (dflags, (anns, lmod)) <- parseModuleFromString "src/Test.hs" contents
+  Right (dflags, uncurry Source -> src) <- parseModuleFromString "src/Test.hs" contents
 
   runGHC
        . traceToIO
-       . runInputConst dflags
-       . stateAndInput anns
-       . stateAndInput lmod
-       . memoizeTypeStuff
-       . runAnno
        . runFresh @Integer
+       . runInputConst dflags
+       . runTypechecker
+       . stateAndInput src
+       . runAnno
        . runHoleInfo
        $ do
     holes <- holeInfo $ todo 0
@@ -63,22 +60,11 @@ main = do
         destruct $ mkVarOcc "x"
         split
         assumption
-      spliceTree (todo 0) $ fromJust expr
+      src' <- spliceTree (todo 0) (fromJust expr) src
+      put src'
 
-    lmod' <- input @LModule
-    anns' <- input
+    Source anns' lmod' <- get
     trace $ exactPrint lmod' anns'
-
-
-memoizeTypeStuff
-    :: Members '[Input Anns, Embed Ghc, Embed IO, State LModule, Trace] r
-    => Sem (View (Maybe TypecheckedModule) ': r) a
-    -> Sem r a
-memoizeTypeStuff = viewToState $ \lmod -> do
-  anns <- input
-  let printed = exactPrint lmod anns
-  embed $ writeFile "/tmp/dyna.hs" printed
-  fmap fst $ embed $ loadFile @Ghc ("/tmp/dyna.hs", "/tmp/dyna.hs")
 
 
 stateAndInput :: s -> Sem (Input s ': State s ': r) a -> Sem r a

@@ -6,48 +6,29 @@ import Control.Lens
 import Control.Monad
 import Language.Haskell.GHC.ExactPrint
 import Polysemy
-import Polysemy.State
 import Printers
+import Sem.Fresh
 import Types
 
 
 data Anno m a where
-  SpliceTree :: Traversal' LModule LExpr -> LExpr -> Anno m ()
+  SpliceTree :: Traversal' LModule LExpr -> LExpr -> Source -> Anno m Source
 
 makeSem ''Anno
 
 
 runAnno
-    :: Members '[State Anns, State LModule] r
+    :: Member (Fresh Integer) r
     => Sem (Anno ': r) a
     -> Sem r a
 runAnno
-  = runEmbeddedTrans
-  . reinterpret \case
-      SpliceTree l e -> do
-        t <- get @LModule
-
+  = interpret \case
+      SpliceTree l e (Source anns t) -> do
         -- create a unique srcspan for each result
         let n = length $ t ^.. l
-        e' <- replicateM n $ embed $ ok e
+        e' <- replicateM n $ ok e
 
         -- update the annotations so everything will ppr correctly
-        modify @Anns $ (<> foldMap (\e0 -> addAnnotationsForPretty [] e0 mempty) e')
-        put $ t & partsOf l .~ e'
-
-
-runEmbeddedTrans
-    :: Members '[State Anns] r
-    => Sem (Embed Transform ': r) a
-    -> Sem r a
-runEmbeddedTrans
-  = evalState @Int 0
-  . reinterpret \case
-      Embed m -> do
-        i <- get
-        anns <- get
-        let (a, (anns', i'), _) = runTransformFrom i anns m
-        put i'
-        put anns'
-        pure a
+        let anns' = anns <> foldMap (\e0 -> addAnnotationsForPretty [] e0 mempty) e'
+        pure $ Source anns' $ t & partsOf l .~ e'
 

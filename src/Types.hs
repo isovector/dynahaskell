@@ -1,4 +1,6 @@
+{-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Types
   ( module Types
@@ -21,6 +23,7 @@ module Types
   , Type
   ) where
 
+import Data.Data
 import BasicTypes
 import Data.Generics.Product.Positions
 import Data.Generics.Sum.Constructors
@@ -34,9 +37,17 @@ import Language.Haskell.GHC.ExactPrint
 
 type Expr = HsExpr GhcPs
 type Module = HsModule GhcPs
-type TyDecl = TyClDecl GhcPs
 
 type LType = Located (HsType GhcPs)
 type LExpr = Located (HsExpr GhcPs)
 type LModule = Located (HsModule GhcPs)
+
+
+data Source = Source
+  { sourceAnns :: Anns
+  , sourceMod :: LModule
+  }
+  deriving Data
+
+deriving instance Data Annotation
 

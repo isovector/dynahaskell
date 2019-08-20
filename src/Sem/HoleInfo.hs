@@ -2,20 +2,20 @@
 
 module Sem.HoleInfo where
 
-import Control.Arrow
-import MarkerUtils
-import Control.Lens
-import Polysemy
-import Types hiding (Type)
-import TcRnTypes
-import Sem.Anns
-import MarkerLenses
-import Polysemy.State
-import GHC
-import Sem.View
-import Id
 import Bag
+import Control.Arrow
+import Control.Lens
+import GHC
+import Id
+import MarkerLenses
+import MarkerUtils
+import Polysemy
+import Polysemy.State
+import Sem.Anns
 import Sem.Fresh
+import Sem.Typecheck
+import TcRnTypes
+import Types hiding (Type)
 
 data HoleInfo m a where
   HoleInfo :: Traversal' LModule LExpr -> HoleInfo m [(Type, [(Name, Type)])]
@@ -24,7 +24,7 @@ makeSem ''HoleInfo
 
 
 runHoleInfo
-    :: Members '[View (Maybe TypecheckedModule), State LModule, Anno, Fresh Integer] r
+    :: Members '[Typecheck, State Source, Anno, Fresh Integer] r
     => Sem (HoleInfo ': r) a
     -> Sem r a
 runHoleInfo = interpret \case
@@ -32,8 +32,7 @@ runHoleInfo = interpret \case
     i <- fresh
     let hole = mkVar $ "_hole" ++ show i
     t <- get
-    spliceTree l $ noLoc hole
-    v <- see
+    v <- typecheck =<< spliceTree l (noLoc hole) t
     put t *>
       case v of
         Nothing -> pure []

@@ -21,7 +21,6 @@ import Data.Function
 import Data.List
 import Data.Traversable
 import DataCon
-import GHC (TypecheckedModule (..))
 import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import MarkerUtils
 import Name hiding (varName)
@@ -30,7 +29,6 @@ import Polysemy
 import Polysemy.Input
 import Refinery.Tactic
 import Sem.Fresh
-import Sem.View
 import TyCoRep
 import TyCon
 import Type
@@ -62,7 +60,6 @@ type Rule r = RuleT Judgement LExpr (ProvableT Judgement (ExceptT TacticError (S
 type TacticMems r = Members
   '[ Fresh Integer
    , Input DynFlags
-   , View (Maybe TypecheckedModule)
    ] r
 
 assumption :: Tactic r
@@ -138,7 +135,6 @@ destruct term = rule $ \(Judgement hy g) -> do
                 $ GRHSs NoExt [noLoc $ GRHS NoExt [] sg]
                 $ noLoc
                 $ EmptyLocalBinds NoExt
-
 
 
 split :: TacticMems r => Tactic r
