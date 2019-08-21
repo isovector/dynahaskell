@@ -16,6 +16,7 @@ import           Data.Bifunctor
 import           Data.Foldable
 import           Data.Maybe
 import qualified Graphics.Vty as V
+import           Language.Haskell.GHC.ExactPrint.Parsers (parseExpr)
 import           Name
 import           Outputable hiding ((<+>))
 import           Polysemy
@@ -157,6 +158,14 @@ appEvent st (T.VtyEvent e) | Just (_, cont) <- dEditCont st = do
       M.continue $ st
         { dEditor = edit'
         }
+appEvent st (T.VtyEvent (V.EvKey (V.KChar 'e') [])) =
+  withEdit st "Edit" $ \c st' -> do
+    parseLExpr c >>= \case
+      Just lexpr -> do
+        t <- focus
+        record =<< spliceTree (dTarget st) lexpr t
+        pure st'
+      Nothing -> pure st'
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 's') [])) =
   withEdit st "Destruct Term" $ \c st' -> do
     runTacticOf (destruct $ mkVarOcc c) st
@@ -194,4 +203,13 @@ withEdit st prompt cont = M.continue $ st
   , dEditor = resetEditor
   }
 
+
+parseLExpr :: Mems r => String -> Sem r (Maybe LExpr)
+parseLExpr s = do
+  dflags <- input
+  -- TODO(sandy): keep the anns here
+  pure $ fmap snd $ hush $ parseExpr dflags "parseLExpr" s
+
+hush :: Either b a -> Maybe a
+hush = either (const Nothing) Just
 
