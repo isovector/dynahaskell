@@ -12,6 +12,7 @@ module Tactics
   , assumption
   , intro
   , destruct
+  , Tactic
   ) where
 
 import Control.Lens

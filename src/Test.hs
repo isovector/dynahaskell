@@ -7,5 +7,5 @@ data Void
 data Fonk a = Fonk Int Bool (a, String)
 
 test :: String -> Either Bool Bool -> (Bool, String)
-test s = \x -> todo 0
+test = todo 0
 

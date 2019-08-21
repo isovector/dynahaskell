@@ -41,6 +41,11 @@ todo n = locate \case
   Todo n' | n == n' -> True
   _ -> False
 
+anyTodo :: Data a => Traversal' a LExpr
+anyTodo = locate \case
+  Todo _ -> True
+  _ -> False
+
 mkVar :: String -> Expr
 mkVar = HsVar NoExt . noLoc . Unqual . mkVarOcc
 

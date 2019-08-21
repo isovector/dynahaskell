@@ -2,14 +2,15 @@
 
 module Printers where
 
+import Control.Lens
+import FastString
+import GHC
+import Generics.SYB hiding (Generic, empty)
+import Language.Haskell.GHC.ExactPrint
+import Outputable
 import Polysemy
 import Sem.Fresh
-import Generics.SYB hiding (Generic, empty)
-import GHC
-import FastString
-import Outputable
 import Types
-import Language.Haskell.GHC.ExactPrint
 
 
 ok :: (Data a, Member (Fresh Integer) r) => a -> Sem r a
@@ -17,6 +18,7 @@ ok = everywhereM (mkM mkSrc)
   where
     mkSrc s | s == noSrcSpan = uniqueSpan
             | otherwise = pure s
+
 
 uniqueSpan :: Member (Fresh Integer) r => Sem r SrcSpan
 uniqueSpan = do

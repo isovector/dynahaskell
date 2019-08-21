@@ -1,43 +1,35 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE TupleSections   #-}
+{-# LANGUAGE ConstraintKinds           #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE TupleSections             #-}
 
 module UI where
 
-import           Bag
 import           Brick hiding (loc)
 import qualified Brick.Main as M
 import qualified Brick.Types as T
 import           Brick.Widgets.Border
 import           Brick.Widgets.Border.Style
-import           Brick.Widgets.Edit
 import           Brick.Widgets.Center
-import           Control.Lens
-import           Control.Monad
+import           Brick.Widgets.Edit
+import           Control.Lens hiding (holes)
+import           Data.Bifunctor
+import           Data.Foldable
 import           Data.Maybe
-import           GHC (SrcSpan, TypecheckedModule (..))
 import qualified Graphics.Vty as V
-import           HIE.Bios
-import           Id
-import           Language.Haskell.GHC.ExactPrint
-import           Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
-import           MarkerLenses
-import           MarkerUtils
 import           Name
 import           Outputable hiding ((<+>))
 import           Polysemy
 import           Polysemy.Input
 import           Polysemy.State
-import           Polysemy.Trace
 import           Printers
+import           Refinery.Tactic ((<!>))
 import           Sem.Anns
+import           Sem.Fresh
 import           Sem.Ghc
 import           Sem.HoleInfo
 import           Sem.Typecheck
-import           Sem.View
 import           Tactics
-import           TcRnTypes
 import           Types
-import           Var
 
 
 data Names = Editor
@@ -47,14 +39,13 @@ data Names = Editor
 data Data = Data
   { dIsEditing :: Bool
   , dEditor :: Editor String Names
-  , dSource :: Source
   , dTarget :: Traversal' LModule LExpr
   , dHoleInfo :: Maybe (Type, [(Name, Type)])
   }
 
 
-defData :: Traversal' LModule LExpr -> Maybe (Type, [(Name, Type)]) -> Source -> Data
-defData l info src = Data False resetEditor src l info
+defData :: Traversal' LModule LExpr -> Maybe (Type, [(Name, Type)]) -> Data
+defData = Data False resetEditor
 
 resetEditor :: Editor String Names
 resetEditor = editor Editor (Just 1) ""
@@ -66,23 +57,26 @@ type Mems r =
      , Embed Ghc
      , Typecheck
      , Input DynFlags
+     , State Source
+     , Fresh Integer
      ] r
 
 
 drawUi :: Mems r => Data -> Sem r [Widget Names]
 drawUi st = do
   dflags <- input
+  src <- get
   pure . pure
        . withBorderStyle unicode
        . borderWithLabel (str "The Glorious DynaHaskell Editor")
        $ vBox
     [ hBox
-      [ padAll 1 . str
-                 . prettySource
-                 $ dSource st
+      [ padRight Max
+                 . padAll 1 . str
+                 $ prettySource src
       , vBorder
-      , vBox
-        [ center $ str $ pprToString dflags $ ppr $ fst <$> dHoleInfo st
+      , hLimit 40 $ vBox
+        [ hCenter $ str $ pprToString dflags $ ppr $ fst <$> dHoleInfo st
         , hBorder
         , vBox $ do
             (_, bs) <- maybeToList $ dHoleInfo st
@@ -98,6 +92,31 @@ drawUi st = do
     , padAll 1 . renderEditor (str . concat) (dIsEditing st)
                $ dEditor st
     ]
+
+
+runTacticOf ::  Mems r => Tactic r -> Data -> Sem r ()
+runTacticOf t st = do
+  let l :: Traversal' LModule LExpr
+      l = dTarget st
+
+  src <- get
+  holes <- holeInfo l src
+  for_ holes $ \(goal, scope) -> do
+    src' <- get
+    mexpr <- tactic goal (fmap (first nameOccName) scope) t
+    for_ mexpr $ \expr -> do
+      put =<< spliceTree (taking 1 l) expr src'
+
+
+updateContext :: Mems r => Data -> Sem r Data
+updateContext st = do
+  src <- get
+  holes <- holeInfo (dTarget st) src
+  pure $
+    st
+      { dHoleInfo = listToMaybe holes
+      }
+
 
 
 
@@ -141,14 +160,10 @@ appEvent
 --       Just expr -> modify @LModule $ nextSolve .~ expr
 --       Nothing -> pure ()
 --     pure st
--- appEvent st (T.VtyEvent (V.EvKey (V.KChar 'o') [])) =
---   M.performAction $ do
---     ty <- typecheck nextSolve
---     tactic ty one >>= \case
-
---       Just expr -> modify @LModule $ nextSolve .~ expr
---       Nothing -> pure ()
---     pure st
+appEvent st (T.VtyEvent (V.EvKey (V.KChar 't') [])) =
+  M.performAction $ do
+    runTacticOf (intro "x" <!> assumption <!> split) st
+    updateContext st
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt st
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt st
 appEvent st (T.VtyEvent (V.EvKey V.KEsc [])) = M.halt st

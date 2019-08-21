@@ -4,16 +4,15 @@
 
 module Lib where
 
+import Brick.Main
+import Control.Lens (taking)
+import Control.Monad
 import Control.Monad.IO.Class
-import Data.Bifunctor
-import Data.Foldable
 import Data.Maybe
 import DynFlags
 import GHC (SrcSpan)
-import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import MarkerUtils
-import Name
 import Polysemy
 import Polysemy.Input
 import Polysemy.State
@@ -23,11 +22,8 @@ import Sem.Fresh
 import Sem.Ghc
 import Sem.HoleInfo
 import Sem.Typecheck
-import Tactics
 import Types
 import UI
-import Brick.Main
-import Control.Monad
 
 
 
@@ -54,11 +50,9 @@ main = do
        . stateAndInput src
        . runAnno
        $ do
-    let l = todo 0
-    holes <- holeInfo (todo 0) src
-    void $ defaultMain app $ defData l (listToMaybe holes) src
-
-
+    let l = taking 1 anyTodo
+    holes <- holeInfo l src
+    void $ defaultMain app $ defData l (listToMaybe holes)
 --     for_ holes $ \(goal, scope) -> do
 --       expr <- tactic goal (fmap (first nameOccName) scope) $ do
 --         destruct $ mkVarOcc "x"

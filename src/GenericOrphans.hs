@@ -2,6 +2,7 @@
 
 module GenericOrphans where
 
+import Language.Haskell.GHC.ExactPrint.Types (Annotation (..))
 import BasicTypes
 import GHC.Generics
 import HsSyn
@@ -29,3 +30,5 @@ deriving instance Generic (TyClDecl GhcTc)
 deriving instance Generic (HsOverLit GhcTc)
 deriving instance Generic (HsLit GhcTc)
 deriving instance Generic (HsModule GhcTc)
+
+deriving instance Generic Annotation
