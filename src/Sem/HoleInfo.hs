@@ -30,9 +30,10 @@ holeInfo l t = do
     Nothing -> []
     Just tc -> holeInfoForName ("_hole" ++ show i) tc
 
-getBinderType :: TcBinder -> (Name, Kind)
-getBinderType (TcIdBndr b _) = (idName b, idType b)
-getBinderType _ = error "getBinderType: this should never happen"
+getBinderType :: TcBinder -> [(Name, Kind)]
+getBinderType (TcIdBndr b _) = pure $ (idName b, idType b)
+getBinderType (TcTvBndr _ _)  = []
+getBinderType _  = error "getBinderType: this should never happen"
 
 
 holeInfoForName :: String -> TypecheckedModule -> [(Type, [(Name, Type)])]
@@ -43,5 +44,5 @@ holeInfoForName n tc =
                 . to (id &&& id)
                 . alongside (position @2 . loc . to idType)
                             (position @1)
-   in fmap (second $ fmap getBinderType) hole_info
+   in fmap (second (>>= getBinderType)) hole_info
 

@@ -89,7 +89,7 @@ drawUi st = do
         , vBox $ do
             (_, bs) <- maybeToList $ dHoleInfo st
             (n, t) <- bs
-            pure $ str $ mconcat
+            pure $ strWrap $ mconcat
               [ occNameString $ nameOccName n
               , "  ::"
               , pprToString dflags $ ppr t
