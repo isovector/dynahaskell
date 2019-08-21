@@ -30,6 +30,7 @@ import           Sem.HoleInfo
 import           Sem.Typecheck
 import           Tactics
 import           Types
+import           Zipper
 
 
 data Names = Editor
@@ -37,7 +38,7 @@ data Names = Editor
 
 
 data Data r = Data
-  { dEditCont :: Maybe (String -> Data r -> Sem r (Data r))
+  { dEditCont :: Maybe (String, String -> Data r -> Sem r (Data r))
   , dEditor :: Editor String Names
   , dTarget :: Traversal' LModule LExpr
   , dHoleInfo :: Maybe (Type, [(Name, Type)])
@@ -57,7 +58,7 @@ type Mems r =
      , Embed Ghc
      , Typecheck
      , Input DynFlags
-     , State Source
+     , State (Zipper Source)
      , Fresh Integer
      ] r
 
@@ -65,7 +66,7 @@ type Mems r =
 drawUi :: Mems r => Data r -> Sem r [Widget Names]
 drawUi st = do
   dflags <- input
-  src <- get
+  src <- focus
   pure . pure
        . withBorderStyle unicode
        . borderWithLabel (str "The Glorious DynaHaskell Editor")
@@ -89,8 +90,14 @@ drawUi st = do
         ]
       ]
     , hBorder
-    , padAll 1 . renderEditor (str . concat) (isJust $ dEditCont st)
-               $ dEditor st
+    , padAll 1 $
+        case dEditCont st of
+          Just (prompt, _) ->
+            hBox
+            [ str $ prompt ++ "> "
+            , renderEditor (str . concat) (isJust $ dEditCont st) $ dEditor st
+            ]
+          Nothing -> str ""
     ]
 
 
@@ -99,30 +106,23 @@ runTacticOf t st = do
   let l :: Traversal' LModule LExpr
       l = dTarget st
 
-  src <- get
+  src <- focus
   holes <- holeInfo l src
   for_ holes $ \(goal, scope) -> do
-    src' <- get
+    src' <- focus
     mexpr <- tactic goal (fmap (first nameOccName) scope) t
     for_ mexpr $ \expr -> do
-      put =<< spliceTree (taking 1 l) expr src'
+      record =<< spliceTree (taking 1 l) expr src'
 
 
 updateContext :: Mems r => Data r -> Sem r (Data r)
 updateContext st = do
-  src <- get
+  src <- focus
   holes <- holeInfo (dTarget st) src
-  pure $
-    st
-      { dHoleInfo = listToMaybe holes
-      }
+  pure $ st { dHoleInfo = listToMaybe holes }
 
 
-
-
-app
-    :: Mems r
-    => M.App (Data r) e Names (Sem r)
+app :: Mems r => M.App (Data r) e Names (Sem r)
 app = M.App
   { M.appDraw         = drawUi
   , M.appStartEvent   = pure
@@ -136,7 +136,8 @@ appEvent
     => Data r
     -> T.BrickEvent Names e
     -> T.EventM Names (Sem r) (T.Next (Sem r) (Data r))
-appEvent st (T.VtyEvent e) | Just cont <- dEditCont st = do
+appEvent st (T.VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt st
+appEvent st (T.VtyEvent e) | Just (_, cont) <- dEditCont st = do
   case e of
     V.EvKey V.KEsc [] ->
       M.continue $ st
@@ -157,22 +158,39 @@ appEvent st (T.VtyEvent e) | Just cont <- dEditCont st = do
         { dEditor = edit'
         }
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 's') [])) =
-  withEdit st $ \c st' -> do
+  withEdit st "Destruct Term" $ \c st' -> do
     runTacticOf (destruct $ mkVarOcc c) st
     updateContext st'
+appEvent st (T.VtyEvent (V.EvKey (V.KChar 'a') [])) =
+  M.performAction $ do
+    runTacticOf auto st
+    updateContext st
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 't') [])) =
   M.performAction $ do
     runTacticOf (intro "x" <!> assumption <!> split) st
     updateContext st
-appEvent st (T.VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt st
+appEvent st (T.VtyEvent (V.EvKey V.KLeft [])) =
+  M.performAction $ do
+    undo
+    updateContext st
+appEvent st (T.VtyEvent (V.EvKey V.KRight [])) =
+  M.performAction $ do
+    redo
+    updateContext st
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt st
 appEvent st (T.VtyEvent (V.EvKey V.KEsc [])) = M.halt st
 appEvent st _ = M.continue st
 
 
-withEdit :: Data r -> (String -> Data r -> Sem r (Data r)) -> EventM Names (Sem r) (Next (Sem r) (Data r))
-withEdit st cont = M.continue $ st
-  { dEditCont = Just cont
+withEdit
+    :: Data r
+    -> String
+    -> (String
+        -> Data r
+        -> Sem r (Data r))
+    -> EventM Names (Sem r) (Next (Sem r) (Data r))
+withEdit st prompt cont = M.continue $ st
+  { dEditCont = Just (prompt, cont)
   , dEditor = resetEditor
   }
 

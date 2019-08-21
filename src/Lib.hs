@@ -24,6 +24,7 @@ import Sem.HoleInfo
 import Sem.Typecheck
 import Types
 import UI
+import Zipper
 
 
 
@@ -47,7 +48,7 @@ main = do
        . runFresh @Integer
        . runInputConst dflags
        . runTypechecker
-       . stateAndInput src
+       . stateAndInput (Zipper [] src [])
        . runAnno
        $ do
     let l = taking 1 anyTodo

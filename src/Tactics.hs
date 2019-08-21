@@ -196,7 +196,7 @@ hush _ = Nothing
 
 auto :: TacticMems r => Tactic r
 auto = do
-  intro "x" <!> assumption <!> split
+  intro "x" <!> assumption <!> split <!> throwError (UnsolvedSubgoals [])
   auto
 
 deepen :: TacticMems r => Int -> Tactic r
