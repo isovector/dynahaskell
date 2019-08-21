@@ -2,6 +2,8 @@
 
 module MarkerUtils where
 
+import Polysemy
+import Sem.Fresh
 import Generics.SYB hiding (Generic)
 import Control.Lens
 import Data.Data.Lens
@@ -48,4 +50,9 @@ anyTodo = locate \case
 
 mkVar :: String -> Expr
 mkVar = HsVar NoExt . noLoc . Unqual . mkVarOcc
+
+newTodo :: Member (Fresh Integer) r => Sem r LExpr
+newTodo = do
+  i <- fresh
+  pure $ Todo i
 

@@ -13,12 +13,18 @@ import           Brick.Widgets.Center
 import           Brick.Widgets.Edit
 import           Control.Lens hiding (holes)
 import           Data.Bifunctor
+import           Data.Data.Lens
 import           Data.Foldable
 import           Data.Maybe
+import           Data.Traversable
+import           GenericOrphans ()
 import qualified Graphics.Vty as V
-import           Language.Haskell.GHC.ExactPrint.Parsers (parseExpr)
+import           Language.Haskell.GHC.ExactPrint.Parsers (parseExpr, parseDecl)
+import           Language.Haskell.GHC.ExactPrint.Transform (setPrecedingLines)
+import           MarkerLenses
+import           MarkerUtils
 import           Name
-import           Outputable hiding ((<+>))
+import           Outputable (ppr)
 import           Polysemy
 import           Polysemy.Input
 import           Polysemy.State
@@ -148,8 +154,7 @@ appEvent st (T.VtyEvent e) | Just (_, cont) <- dEditCont st = do
     V.EvKey V.KEnter [] -> do
       let c = getEditContents $ dEditor st
       M.performAction $ do
-        st' <- cont (concat c) st
-        pure $ st'
+        cont (concat c) $ st
           { dEditCont = Nothing
           , dEditor = resetEditor
           }
@@ -159,17 +164,33 @@ appEvent st (T.VtyEvent e) | Just (_, cont) <- dEditCont st = do
         { dEditor = edit'
         }
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'e') [])) =
-  withEdit st "Edit" $ \c st' -> do
-    parseLExpr c >>= \case
-      Just lexpr -> do
-        t <- focus
-        record =<< spliceTree (dTarget st) lexpr t
-        pure st'
-      Nothing -> pure st'
+  M.performAction $ do
+    withEdit st "Edit" $ \c st' -> do
+      parseLExpr c >>= \case
+        Just (anns', lexpr) -> do
+          t <- focus
+          Source anns t' <- spliceTree (dTarget st) lexpr t
+          record $ Source (anns <> anns') t'
+          updateContext st'
+        Nothing -> pure st'
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 's') [])) =
-  withEdit st "Destruct Term" $ \c st' -> do
-    runTacticOf (destruct $ mkVarOcc c) st
-    updateContext st'
+  M.performAction $ do
+    withEdit st "Destruct Term" $ \c st' -> do
+      runTacticOf (destruct $ mkVarOcc c) st
+      updateContext st'
+appEvent st (T.VtyEvent (V.EvKey (V.KChar 'i') [])) =
+  M.performAction $ do
+    withEdit st "Introduce Name" $ \nm st' -> do
+      withEdit st' "Introduce Type" $ \ty st'' -> do
+        decstr <- buildLDecl nm ty
+        parseLDecl decstr >>= \case
+          Just (anns', ldecl) -> do
+            Source anns t <- focus
+            record $ Source (anns <> anns') $ t & loc . biplate <>~ [ldecl]
+            updateContext st''
+          Nothing -> pure st''
+
+
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'a') [])) =
   M.performAction $ do
     runTacticOf auto st
@@ -197,18 +218,39 @@ withEdit
     -> (String
         -> Data r
         -> Sem r (Data r))
-    -> EventM Names (Sem r) (Next (Sem r) (Data r))
-withEdit st prompt cont = M.continue $ st
+    -> Sem r (Data r)
+withEdit st prompt cont = pure $ st
   { dEditCont = Just (prompt, cont)
   , dEditor = resetEditor
   }
 
 
-parseLExpr :: Mems r => String -> Sem r (Maybe LExpr)
+buildLDecl :: Mems r => String -> String -> Sem r String
+buildLDecl nm ty = do
+  dflags <- input
+  td <- newTodo
+  pure $ mconcat
+    [ nm , " :: " , ty , "\n"
+    , nm , " = " , pprToString dflags $ ppr td
+    ]
+
+
+parseLExpr :: Mems r => String -> Sem r (Maybe (Anns, LExpr))
 parseLExpr s = do
   dflags <- input
-  -- TODO(sandy): keep the anns here
-  pure $ fmap snd $ hush $ parseExpr dflags "parseLExpr" s
+  n <- fresh
+  pure $ hush $ parseExpr dflags ("parseLExpr:" ++ show n) s
+
+
+parseLDecl :: Mems r => String -> Sem r (Maybe (Anns, LDecl))
+parseLDecl s = do
+  dflags <- input
+  n <- fresh
+  let mz = hush $ parseDecl dflags ("parseLDecl:" ++ show n) s
+  for mz $ \(anns, decl) -> do
+    let anns' = setPrecedingLines decl 2 0 anns
+    pure (anns', decl)
+
 
 hush :: Either b a -> Maybe a
 hush = either (const Nothing) Just

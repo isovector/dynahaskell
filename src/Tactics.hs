@@ -211,7 +211,5 @@ one = intro "x" <!> assumption <!> split <!> pure ()
 
 instance Member (Fresh Integer) r
       => MonadExtract LExpr (ProvableT Judgement (ExceptT TacticError (Sem r))) where
-  hole = lift $ lift $ do
-    i <- fresh
-    pure $ Todo i
+  hole = lift $ lift newTodo
 

@@ -40,6 +40,7 @@ type Module = HsModule GhcPs
 
 type LType = Located (HsType GhcPs)
 type LExpr = Located (HsExpr GhcPs)
+type LDecl = Located (HsDecl GhcPs)
 type LModule = Located (HsModule GhcPs)
 
 
