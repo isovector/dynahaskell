@@ -2,10 +2,14 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
+
+{-# OPTIONS_GHC -fdefer-type-errors #-}
 
 module Tactics
   ( tactic
   , auto
+  , apply
   , one
   , split
   , deepen
@@ -37,6 +41,9 @@ import Types
 
 newtype CType = CType { unCType :: Type }
 
+instance Outputable CType where
+  ppr (CType t) = ppr t
+
 instance Eq CType where
   (==) = eqType `on` unCType
 
@@ -48,10 +55,19 @@ instance Ord CType where
 data Judgement = Judgement [(OccName, CType)] CType
   deriving (Eq, Ord)
 
+instance Outputable Judgement where
+  ppr (Judgement hy g) = "goal: " <+> ppr g <+> vcat (fmap ppr hy)
+
+
 data TacticError
   = UndefinedHypothesis OccName
   | GoalMismatch String CType
   | UnsolvedSubgoals [Judgement]
+
+instance Outputable TacticError where
+  ppr (UndefinedHypothesis n) = "undefined hy: " <+> ppr n
+  ppr (GoalMismatch g (CType t)) = "goal mismatch: " <+> text g <+> ppr t
+  ppr (UnsolvedSubgoals gs) = "unsolved subgoals: " <+> vcat (fmap ppr gs)
 
 
 type Tactics r = TacticT Judgement LExpr (ProvableT Judgement (ExceptT TacticError (Sem r)))
@@ -138,6 +154,24 @@ destruct term = rule $ \(Judgement hy g) -> do
                 $ EmptyLocalBinds NoExt
 
 
+apply :: TacticMems r => Tactic r
+apply = rule $ \(Judgement hy g) -> do
+  -- pprTraceM "hys" $ vcat
+  --   [ ppr $ fmap (second unCType) hy
+  --   ]
+  case find ((== Just g) . fmap (CType . snd) . splitFunTy_maybe . unCType . snd) hy of
+    Just (func, CType ty) -> do
+      let (args, _) = splitFunTys ty
+      -- pprTraceM "args" $ vcat
+      --   [ ppr $ args
+      --   ]
+      sgs <- traverse (subgoal . Judgement hy . CType) args
+      pure . noLoc
+           $ foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec)
+                    (HsVar NoExt $ noLoc $ Unqual func) sgs
+    Nothing -> throwError $ GoalMismatch "apply" g
+
+
 split :: TacticMems r => Tactic r
 split = rule $ \(Judgement hy g) ->
   case splitTyConApp_maybe $ unCType g of
@@ -190,14 +224,6 @@ tactic ty hy t = do
     $ CType ty
 
 
-hush :: Either a b -> Maybe b
-hush (Right b) = Just b
-hush _ = Nothing
-
-auto :: TacticMems r => Tactic r
-auto = do
-  intro "x" <!> assumption <!> split <!> throwError (UnsolvedSubgoals [])
-  auto
 
 deepen :: TacticMems r => Int -> Tactic r
 deepen 0 = pure ()
@@ -205,11 +231,24 @@ deepen depth = do
   one
   deepen $ depth - 1
 
+auto :: TacticMems r => Tactic r
+auto = do
+  g <- goal
+  intro "x" <!> assumption <!> split <!> apply <!> throwError (UnsolvedSubgoals [g])
+  auto
+
 one :: TacticMems r => Tactic r
-one = intro "x" <!> assumption <!> split <!> pure ()
+one = intro "x" <!> assumption <!> split <!> apply <!> pure ()
 
 
 instance Member (Fresh Integer) r
       => MonadExtract LExpr (ProvableT Judgement (ExceptT TacticError (Sem r))) where
   hole = lift $ lift newTodo
+
+
+hush :: Outputable a => Either a b -> Maybe b
+hush (Right b) = Just b
+hush (Left _a) = do
+  -- pprTraceM "hushed" $ ppr _a
+  Nothing
 

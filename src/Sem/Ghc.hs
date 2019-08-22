@@ -12,8 +12,9 @@ import GhcMonad
 
 runGHC :: Sem '[Embed IO, Embed Ghc] a -> IO a
 runGHC m = do
-  cradle <- findCradle "../test-dyna/src/Test.hs"
+  let file = "src/Test.hs"
+  cradle <- findCradle file
   withGHC' $ do
-    initializeFlagsWithCradle "../test-dyna/src/Test.hs" cradle
+    initializeFlagsWithCradle file cradle
     runM $ embedToMonadIO m
 

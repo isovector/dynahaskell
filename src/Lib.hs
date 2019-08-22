@@ -27,6 +27,13 @@ import UI
 import Zipper
 
 
+import Tactics
+import Data.Bifunctor
+import Data.Foldable
+import Name
+import Language.Haskell.GHC.ExactPrint
+
+
 
 parseFileModule
   :: FilePath
@@ -40,13 +47,15 @@ parseFileModule fp = ghcWrapper $ do
 
 main :: IO ()
 main = do
-  Right (dflags, src) <- parseFileModule "src/Test.hs"
+  (dflags, src) <- parseFileModule "src/Test.hs" >>= \case
+    Right (dflags, src) -> pure (dflags, src)
+    Left a -> error $ show a
+  let dflags' = gopt_set dflags Opt_SuppressUniques
 
   runGHC
        . traceToIO
-       . runInputConst dflags
+       . runInputConst dflags'
        . runFresh @Integer
-       . runInputConst dflags
        . runTypechecker
        . stateAndInput (Zipper [] src [])
        . runAnno
@@ -54,16 +63,14 @@ main = do
     let l = taking 1 anyTodo
     holes <- holeInfo l src
     void $ defaultMain app $ defData l (listToMaybe holes)
---     for_ holes $ \(goal, scope) -> do
---       expr <- tactic goal (fmap (first nameOccName) scope) $ do
---         destruct $ mkVarOcc "x"
---         split
---         assumption
---       src' <- spliceTree (todo 0) (fromJust expr) src
---       put src'
+    -- for_ holes $ \(goal, scope) -> do
+    --   expr <- tactic goal (fmap (first nameOccName) scope) $ do
+    --     apply
+    --   src' <- spliceTree (todo 0) (fromJust expr) src
+    --   record src'
 
---     Source anns' lmod' <- get
---     trace $ exactPrint lmod' anns'
+    -- Source anns' lmod' <- focus
+    -- trace $ exactPrint lmod' anns'
 
 
 

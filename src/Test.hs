@@ -5,6 +5,7 @@
 module Test where
 
 import Markers
+import Polysemy
 
 data Void
 data Fonk a = Fonk Int Bool (a, String)

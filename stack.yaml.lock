@@ -25,6 +25,13 @@ packages:
       sha256: ccff12462041b2cebdb63c4430433baac11ac8d8e56e3ae0f0f17b4ab820bda9
   original:
     hackage: refinery-0.1.0.0
+- completed:
+    hackage: unipatterns-0.0.0.0@sha256:1f1b167af191a7bae2696d40bb9832a61ab011bf0a6c5978c7ebb42220b45001,1124
+    pantry-tree:
+      size: 312
+      sha256: b25d94753501df5aaaf64ace4cce524ea5dc191e674cb79acf59d95e39cdca79
+  original:
+    hackage: unipatterns-0.0.0.0
 snapshots:
 - completed:
     size: 523443

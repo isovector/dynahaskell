@@ -30,13 +30,14 @@ dependencies:
 - containers
 - polysemy
 - polysemy-plugin
-- polysemy-zoo
 - vty
 - refinery
 - transformers
 - mtl
 - hie-bios
 - semigroupoids
+- free
+- unipatterns
 
 default-extensions:
 - FlexibleContexts

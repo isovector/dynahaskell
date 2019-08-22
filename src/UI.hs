@@ -11,13 +11,14 @@ import           Brick.Widgets.Border
 import           Brick.Widgets.Border.Style
 import           Brick.Widgets.Center
 import           Brick.Widgets.Edit
+import           Control.Arrow ((***))
 import           Control.Lens hiding (holes)
-import           Data.Bifunctor
 import           Data.Data.Lens
-import           Data.Foldable
 import           Data.Maybe
+import           Data.Monoid
 import           Data.Traversable
 import           GenericOrphans ()
+import           Generics.SYB (everywhereM, mkM)
 import qualified Graphics.Vty as V
 import           Language.Haskell.GHC.ExactPrint.Parsers (parseExpr, parseDecl)
 import           Language.Haskell.GHC.ExactPrint.Transform (setPrecedingLines)
@@ -27,47 +28,15 @@ import           Name
 import           Outputable (ppr)
 import           Polysemy
 import           Polysemy.Input
-import           Polysemy.State
 import           Printers
-import           Refinery.Tactic ((<!>))
 import           Sem.Anns
 import           Sem.Fresh
-import           Sem.Ghc
-import           Sem.HoleInfo
-import           Sem.Typecheck
 import           Tactics
+import qualified Trie as T
 import           Types
+import           UI.Stuff
+import           UniPatterns
 import           Zipper
-
-
-data Names = Editor
-  deriving (Eq, Ord, Show)
-
-
-data Data r = Data
-  { dEditCont :: Maybe (String, String -> Data r -> Sem r (Data r))
-  , dEditor :: Editor String Names
-  , dTarget :: Traversal' LModule LExpr
-  , dHoleInfo :: Maybe (Type, [(Name, Type)])
-  }
-
-
-defData :: Traversal' LModule LExpr -> Maybe (Type, [(Name, Type)]) -> Data r
-defData = Data Nothing resetEditor
-
-resetEditor :: Editor String Names
-resetEditor = editor Editor (Just 1) ""
-
-
-type Mems r =
-  Members
-    '[ Anno
-     , Embed Ghc
-     , Typecheck
-     , Input DynFlags
-     , State (Zipper Source)
-     , Fresh Integer
-     ] r
 
 
 drawUi :: Mems r => Data r -> Sem r [Widget Names]
@@ -79,11 +48,13 @@ drawUi st = do
        . borderWithLabel (str "The Glorious DynaHaskell Editor")
        $ vBox
     [ hBox
-      [ padRight Max
-                 . padAll 1 . str
-                 $ prettySource src
+      [ viewport Code Vertical
+          . cached CodeCache
+          . padRight Max
+          . padAll 1 . str
+          $ prettySource src
       , vBorder
-      , hLimit 40 $ vBox
+      , hLimit 70 $ vBox
         [ hCenter $ str $ pprToString dflags $ ppr $ fst <$> dHoleInfo st
         , hBorder
         , vBox $ do
@@ -99,34 +70,13 @@ drawUi st = do
     , hBorder
     , padAll 1 $
         case dEditCont st of
-          Just (prompt, _) ->
+          Just (p, _) ->
             hBox
-            [ str $ prompt ++ "> "
+            [ str $ p ++ "> "
             , renderEditor (str . concat) (isJust $ dEditCont st) $ dEditor st
             ]
           Nothing -> str ""
     ]
-
-
-runTacticOf ::  Mems r => Tactic r -> Data r -> Sem r ()
-runTacticOf t st = do
-  let l :: Traversal' LModule LExpr
-      l = dTarget st
-
-  src <- focus
-  holes <- holeInfo l src
-  for_ holes $ \(goal, scope) -> do
-    src' <- focus
-    mexpr <- tactic goal (fmap (first nameOccName) scope) t
-    for_ mexpr $ \expr -> do
-      record =<< spliceTree (taking 1 l) expr src'
-
-
-updateContext :: Mems r => Data r -> Sem r (Data r)
-updateContext st = do
-  src <- focus
-  holes <- holeInfo (dTarget st) src
-  pure $ st { dHoleInfo = listToMaybe holes }
 
 
 app :: Mems r => M.App (Data r) e Names (Sem r)
@@ -152,6 +102,7 @@ appEvent st (T.VtyEvent e) | Just (_, cont) <- dEditCont st = do
         , dEditor = resetEditor
         }
     V.EvKey V.KEnter [] -> do
+      invalidateCacheEntry CodeCache
       let c = getEditContents $ dEditor st
       M.performAction $ do
         cont (concat c) $ st
@@ -163,66 +114,40 @@ appEvent st (T.VtyEvent e) | Just (_, cont) <- dEditCont st = do
       M.continue $ st
         { dEditor = edit'
         }
-appEvent st (T.VtyEvent (V.EvKey (V.KChar 'e') [])) =
-  M.performAction $ do
-    withEdit st "Edit" $ \c st' -> do
-      parseLExpr c >>= \case
-        Just (anns', lexpr) -> do
-          t <- focus
-          Source anns t' <- spliceTree (dTarget st) lexpr t
-          record $ Source (anns <> anns') t'
-          updateContext st'
-        Nothing -> pure st'
-appEvent st (T.VtyEvent (V.EvKey (V.KChar 's') [])) =
-  M.performAction $ do
-    withEdit st "Destruct Term" $ \c st' -> do
-      runTacticOf (destruct $ mkVarOcc c) st
-      updateContext st'
-appEvent st (T.VtyEvent (V.EvKey (V.KChar 'i') [])) =
-  M.performAction $ do
-    withEdit st "Introduce Name" $ \nm st' -> do
-      withEdit st' "Introduce Type" $ \ty st'' -> do
-        decstr <- buildLDecl nm ty
-        parseLDecl decstr >>= \case
-          Just (anns', ldecl) -> do
-            Source anns t <- focus
-            record $ Source (anns <> anns') $ t & loc . biplate <>~ [ldecl]
-            updateContext st''
-          Nothing -> pure st''
-
-
-appEvent st (T.VtyEvent (V.EvKey (V.KChar 'a') [])) =
-  M.performAction $ do
-    runTacticOf auto st
-    updateContext st
-appEvent st (T.VtyEvent (V.EvKey (V.KChar 't') [])) =
-  M.performAction $ do
-    runTacticOf (intro "x" <!> assumption <!> split) st
-    updateContext st
-appEvent st (T.VtyEvent (V.EvKey V.KLeft [])) =
-  M.performAction $ do
-    undo
-    updateContext st
-appEvent st (T.VtyEvent (V.EvKey V.KRight [])) =
-  M.performAction $ do
-    redo
-    updateContext st
-appEvent st (T.VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt st
-appEvent st (T.VtyEvent (V.EvKey V.KEsc [])) = M.halt st
 appEvent st _ = M.continue st
 
 
-withEdit
-    :: Data r
-    -> String
-    -> (String
-        -> Data r
-        -> Sem r (Data r))
-    -> Sem r (Data r)
-withEdit st prompt cont = pure $ st
-  { dEditCont = Just (prompt, cont)
-  , dEditor = resetEditor
-  }
+vim
+    :: Mems r => T.Trie V.Key
+             (Last ( Data r
+                  -> T.EventM Names (Sem r) (T.Next (Sem r) (Data r))
+                   ))
+vim = T.fromList $ fmap (mapChars *** Last . Just)
+  [ "gg" --> continuing $ vScrollToBeginning scroller
+  , "G"  --> continuing $ vScrollToEnd scroller
+  , "↑"  --> continuing $ vScrollBy scroller (-1)
+  , "↓"  --> continuing $ vScrollBy scroller 1
+  , "←"  --> invalidating (<$ undo)
+  , "→"  --> invalidating (<$ redo)
+  , "a"  --> invalidating $ tactful auto
+  , "t"  --> invalidating $ tactful one
+  , "d"  --> sem $ prompt "Destruct" $ tactful . destruct . mkVarOcc
+  , "e"  -->
+      sem $ prompt "Edit" $ \c st -> do
+        parseLExpr c >>= orMatch (pure st) \(Just (anns', lexpr)) -> do
+          t <- focus
+          Source anns t' <- spliceTree (dTarget st) lexpr t
+          record $ Source (anns <> anns') t'
+          updateContext st
+  , "i"  -->
+      sem $ prompt "Intro Name" $ \nm -> prompt "Intro Type" $ \ty st' -> do
+        decstr <- buildLDecl nm ty
+        parseLDecl decstr >>= orMatch (pure st') \(Just (anns', ldecl)) -> do
+          Source anns t <- focus
+          record $ Source (anns <> anns') $ t & loc . biplate <>~ [ldecl]
+          updateContext st'
+  , "q" --> M.halt
+  ]
 
 
 buildLDecl :: Mems r => String -> String -> Sem r String
@@ -239,7 +164,14 @@ parseLExpr :: Mems r => String -> Sem r (Maybe (Anns, LExpr))
 parseLExpr s = do
   dflags <- input
   n <- fresh
-  pure $ hush $ parseExpr dflags ("parseLExpr:" ++ show n) s
+  for (hush $ parseExpr dflags ("parseLExpr:" ++ show n) s) $ \(anns, lexpr) -> do
+    lexpr' <-
+      everywhereM
+        ( mkM \case
+            L _ (EWildPat _) -> parenthesizeHsExpr appPrec <$> newTodo
+            a -> pure a
+        ) lexpr
+    pure (anns, lexpr')
 
 
 parseLDecl :: Mems r => String -> Sem r (Maybe (Anns, LDecl))
