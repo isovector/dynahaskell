@@ -4,8 +4,6 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
 
-{-# OPTIONS_GHC -fdefer-type-errors #-}
-
 module Tactics
   ( tactic
   , auto
@@ -19,7 +17,9 @@ module Tactics
   , Tactic
   ) where
 
-import Control.Lens
+import Control.Monad.State
+import Data.Char
+import Control.Lens hiding (at)
 import Control.Monad.Except
 import Data.Bifunctor
 import Data.Function
@@ -38,6 +38,7 @@ import TyCoRep
 import TyCon
 import Type
 import Types
+import TcType (tcSplitSigmaTy)
 
 newtype CType = CType { unCType :: Type }
 
@@ -94,13 +95,12 @@ sem
 sem = lift . lift . lift
 
 
-intro :: forall r. TacticMems r => String -> Tactic r
-intro n = rule $ \(Judgement hy g) ->
+intro :: forall r. TacticMems r => Tactic r
+intro = rule $ \(Judgement hy g) ->
   case unCType g of
     (FunTy a b) -> do
-      u <- sem $ fresh
-      let vname = n ++ show u
-          v = mkVarOcc vname
+      v <- sem $ mkGoodName (getInScope hy) a
+      let vname = occNameString v
       sg <- subgoal $ Judgement ((v, CType a) : hy) $ CType b
       e <- sem $ syntactically $ mconcat
              [ "\\"
@@ -113,15 +113,8 @@ intro n = rule $ \(Judgement hy g) ->
     _ -> throwError $ GoalMismatch "intro" g
 
 
-mkName
-    :: Member (Fresh Integer) r
-    => MonadTrans t
-    => String
-    -> t (ProvableT Judgement (ExceptT TacticError (Sem r))) OccName
-mkName name = sem $ do
-  u <- fresh
-  pure $ mkVarOcc $ name ++ show u
-
+getInScope :: [(OccName, a)] -> [OccName]
+getInScope = fmap fst
 
 
 destruct :: TacticMems r => OccName -> Tactic r
@@ -138,7 +131,11 @@ destruct term = rule $ \(Judgement hy g) -> do
               . noLoc <$> do
             for (tyConDataCons tc) $ \dc -> do
               let args = dataConInstArgTys dc apps
-              names <- for args $ const $ mkName "c"
+              names <- flip evalStateT (getInScope hy) $ for args $ \at -> do
+                in_scope <- Control.Monad.State.get
+                n <- lift $ sem $ mkGoodName in_scope at
+                Control.Monad.State.modify (n :)
+                pure n
 
               let pat :: Pat GhcPs
                   pat = ConPatIn (noLoc $ Unqual $ nameOccName $ dataConName dc) $ PrefixCon $ do
@@ -197,6 +194,30 @@ buildDataCon hy dc apps = do
        $ sgs
 
 
+mkGoodName :: TacticMems r => [OccName] -> Type -> Sem r OccName
+mkGoodName in_scope t = do
+  let tn = mkTyName t
+  fmap mkVarOcc $ case elem (mkVarOcc tn) in_scope of
+    True -> do
+      i <- fresh
+      pure $ tn ++ show i
+    False ->
+      pure $ tn
+
+
+mkTyName :: Type -> String
+mkTyName (splitFunTys -> ([splitFunTys -> ([], a)], b)) = "f" ++ mkTyName a ++ mkTyName b
+mkTyName (splitFunTys -> ((_:_), b)) = "f_" ++ mkTyName b
+mkTyName (splitTyConApp_maybe -> Just (c, args@(_:_))) = mkTyConName c ++ foldMap mkTyName args
+mkTyName (getTyVar_maybe -> Just tv) = occNameString $ occName tv
+mkTyName (tcSplitSigmaTy -> ((_:_), _, t)) = mkTyName t
+mkTyName _ = "x"
+
+
+mkTyConName :: TyCon -> String
+mkTyConName = fmap toLower . take 1 . occNameString . getOccName
+
+
 
 syntactically
     :: TacticMems r
@@ -234,11 +255,11 @@ deepen depth = do
 auto :: TacticMems r => Tactic r
 auto = do
   g <- goal
-  intro "x" <!> assumption <!> split <!> apply <!> throwError (UnsolvedSubgoals [g])
+  intro <!> assumption <!> split <!> apply <!> throwError (UnsolvedSubgoals [g])
   auto
 
 one :: TacticMems r => Tactic r
-one = intro "x" <!> assumption <!> split <!> apply <!> pure ()
+one = intro <!> assumption <!> split <!> apply <!> pure ()
 
 
 instance Member (Fresh Integer) r
@@ -251,4 +272,10 @@ hush (Right b) = Just b
 hush (Left _a) = do
   -- pprTraceM "hushed" $ ppr _a
   Nothing
+
+
+-- tactics to write:
+--
+-- - constructor: choose a ctor from a list
+-- - cut: introduce a let
 
