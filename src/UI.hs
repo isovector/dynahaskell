@@ -18,7 +18,7 @@ import           Data.Monoid
 import           EditorActions
 import qualified Graphics.Vty as V
 import           Name
-import           Outputable (ppr)
+import           Outputable (ppr, text)
 import           Polysemy
 import           Polysemy.Input
 import           Printers
@@ -43,13 +43,12 @@ vim = T.fromList $ fmap (mapChars *** Last . Just)
   , "→"  --> invalidating (<$ redo)
   , "a"  --> invalidating $ tactful auto
   , "t"  --> invalidating $ tactful one
-  , "d"  --> sem $ prompt "Destruct" $ tactful . destruct . mkVarOcc
-  , "e"  --> sem $ prompt "Edit" $ \c st ->
-               edit (dTarget st) c
-                 >>= maybe (pure st) (const $ updateContext st)
-  , "i"  --> sem $ prompt "Intro Name" $ \nm -> prompt "Intro Type" $ \ty st' ->
-               introduceTopLevel nm ty
-                 >>= maybe (pure st') (const $ updateContext st')
+  , "d"  --> sem . prompt "Destruct"
+                 $ tactful . destruct . mkVarOcc
+  , "e"  --> sem . prompt "Edit" $ \c st -> flip invalidateSuccess st
+                 $ edit (dTarget st) c
+  , "i"  --> sem . prompt "Intro Name" $ \nm -> prompt "Intro Type"
+                 $ invalidateSuccess . introduceTopLevel nm
   , "q" --> M.halt
   ]
 
@@ -70,27 +69,23 @@ drawUi st = do
           $ prettySource src
       , vBorder
       , hLimit 70 $ vBox
-        [ hCenter $ str $ pprToString dflags $ ppr $ fst <$> dHoleInfo st
+        [ hCenter $ str $ pprToString dflags $ maybe (text "") (ppr . fst) $ dHoleInfo st
         , hBorder
         , vBox $ do
             (_, bs) <- maybeToList $ dHoleInfo st
             (n, t) <- bs
             pure $ strWrap $ mconcat
               [ occNameString $ nameOccName n
-              , "  ::"
-              , pprToString dflags $ ppr t
+              , "  ::" , pprToString dflags $ ppr t
               ]
         ]
       ]
     , hBorder
     , padAll 1 $
-        case dEditCont st of
-          Just (p, _) ->
-            hBox
-            [ str $ p ++ "> "
-            , renderEditor (str . concat) (isJust $ dEditCont st) $ dEditor st
-            ]
-          Nothing -> str ""
+        flip (maybe $ str "") (dEditCont st) $ \(p, _) ->
+          hBox [ str $ p ++ "> "
+               , renderEditor (str . concat) (isJust $ dEditCont st) $ dEditor st
+               ]
     ]
 
 

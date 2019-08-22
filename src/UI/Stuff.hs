@@ -124,6 +124,10 @@ prompt p f st = do
   withEdit st p $ \v st' ->
     f v st'
 
+invalidateSuccess
+  :: Mems r => Sem r (Maybe ()) -> Data r -> Sem r (Data r)
+invalidateSuccess m st = m >>= maybe (pure st) (const $ updateContext st)
+
 
 withEdit
     :: Data r

@@ -47,7 +47,7 @@ parseFileModule fp = ghcWrapper $ do
 
 main :: IO ()
 main = do
-  let file = "src/Tactics.hs"
+  let file = "src/Test.hs"
   (dflags, src) <- parseFileModule file >>= \case
     Right (dflags, src) -> pure (dflags, src)
     Left a -> error $ show a
