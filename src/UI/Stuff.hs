@@ -99,6 +99,11 @@ scroller = viewportScroll Code
 tactful :: Mems r=> Tactic r -> Data r -> Sem r (Data r)
 tactful t st = st <$ runTacticOf t st
 
+tactfulInvalid :: Mems r=> Tactic r -> Data r -> Sem r (Data r)
+tactfulInvalid t st = do
+  runTacticOf t st
+  updateContext st
+
 
 invalidating
   :: Mems r => (t -> Sem r (Data r)) -> t -> EventM Names (Sem r) (Next (Sem r) (Data r))

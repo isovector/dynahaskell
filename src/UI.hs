@@ -44,7 +44,7 @@ vim = T.fromList $ fmap (mapChars *** Last . Just)
   , "a"  --> invalidating $ tactful auto
   , "t"  --> invalidating $ tactful one
   , "d"  --> sem . prompt "Destruct"
-                 $ tactful . destruct . mkVarOcc
+                 $ tactfulInvalid . destruct . mkVarOcc
   , "e"  --> sem . prompt "Edit" $ \c st -> flip invalidateSuccess st
                  $ edit (dTarget st) c
   , "i"  --> sem . prompt "Intro Name" $ \nm -> prompt "Intro Type"
