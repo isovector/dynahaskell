@@ -88,6 +88,15 @@ app = M.App
   , M.appChooseCursor = const listToMaybe
   }
 
+
+defData
+    :: Mems r
+    => Traversal' LModule LExpr
+    -> Maybe (Type, [(Name, Type)])
+    -> Data r
+defData = Data Nothing resetEditor (T.Vim vim vim)
+
+
 appEvent
     :: Mems r
     => Data r
@@ -114,6 +123,10 @@ appEvent st (T.VtyEvent e) | Just (_, cont) <- dEditCont st = do
       M.continue $ st
         { dEditor = edit'
         }
+appEvent st (T.VtyEvent (V.EvKey k [])) = do
+  case T.pump (dVimDFA st) k of
+    (Just a, v)  -> a $ st { dVimDFA = v }
+    (Nothing, v) -> continue $ st { dVimDFA = v }
 appEvent st _ = M.continue st
 
 

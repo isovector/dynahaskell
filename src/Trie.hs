@@ -46,3 +46,18 @@ follow = lookup . pure
 fromList :: (Ord k, Monoid v) => [([k], v)] -> Trie k v
 fromList = foldMap (uncurry singleton)
 
+
+data Vim k v = Vim
+  { vimCurrent :: Trie k (Last v)
+  , vimReset   :: Trie k (Last v)
+  }
+  deriving Functor
+
+
+pump :: Ord k => Vim k v -> k -> (Maybe v, Vim k v)
+pump (Vim c r) k =
+  case follow k c of
+    Just (Last v@(Just _), _) -> (v, Vim r r)
+    Just (Last v, c')         -> (v, Vim c' r)
+    Nothing                   -> (Nothing, Vim r r)
+

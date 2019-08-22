@@ -10,7 +10,6 @@ import           Control.Lens hiding (holes)
 import           Data.Bifunctor
 import           Data.Foldable
 import           Data.Maybe
-import           Data.Monoid
 import           GenericOrphans ()
 import qualified Graphics.Vty as V
 import           Name
@@ -31,21 +30,18 @@ import           Zipper
 data Names = Editor | Code | CodeCache
   deriving (Eq, Ord, Show)
 
-type Vim r = T.Trie V.Key (Last ( Data r -> T.EventM Names (Sem r) (T.Next (Sem r) (Data r))))
+type Action r = Data r -> T.EventM Names (Sem r) (T.Next (Sem r) (Data r))
+type Vim r = T.Vim V.Key (Action r)
 
 
 data Data r = Data
   { dEditCont :: Maybe (String, String -> Data r -> Sem r (Data r))
   , dEditor   :: Editor String Names
-  , dDingus   :: Vim r
-  , dCrampus  :: Vim r
+  , dVimDFA   :: Vim r
   , dTarget   :: Traversal' LModule LExpr
   , dHoleInfo :: Maybe (Type, [(Name, Type)])
   }
 
-
-defData :: Vim r -> Traversal' LModule LExpr -> Maybe (Type, [(Name, Type)]) -> Data r
-defData v = Data Nothing resetEditor v v
 
 resetEditor :: Editor String Names
 resetEditor = editor Editor (Just 1) ""
