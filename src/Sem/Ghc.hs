@@ -10,9 +10,8 @@ import Polysemy.IO
 import GhcMonad
 
 
-runGHC :: Sem '[Embed IO, Embed Ghc] a -> IO a
-runGHC m = do
-  let file = "src/Test.hs"
+runGHC :: FilePath -> Sem '[Embed IO, Embed Ghc] a -> IO a
+runGHC file m = do
   cradle <- findCradle file
   withGHC' $ do
     initializeFlagsWithCradle file cradle

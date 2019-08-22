@@ -39,7 +39,7 @@ parseFileModule
   :: FilePath
   -> IO (Either (SrcSpan, String) (DynFlags, Source))
 parseFileModule fp = ghcWrapper $ do
-  s <- liftIO $ readFile "src/Test.hs"
+  s <- liftIO $ readFile fp
   dflags <- initDynFlagsPure fp s
   pure . fmap ((dflags, ) . uncurry Source)
        $ parseModuleFromStringInternal dflags fp s
@@ -47,12 +47,13 @@ parseFileModule fp = ghcWrapper $ do
 
 main :: IO ()
 main = do
-  (dflags, src) <- parseFileModule "src/Test.hs" >>= \case
+  let file = "src/Tactics.hs"
+  (dflags, src) <- parseFileModule file >>= \case
     Right (dflags, src) -> pure (dflags, src)
     Left a -> error $ show a
   let dflags' = gopt_set dflags Opt_SuppressUniques
 
-  runGHC
+  runGHC file
        . traceToIO
        . runInputConst dflags'
        . runFresh @Integer
