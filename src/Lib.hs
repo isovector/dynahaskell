@@ -27,14 +27,6 @@ import UI
 import Zipper
 
 
-import Tactics
-import Data.Bifunctor
-import Data.Foldable
-import Name
-import Language.Haskell.GHC.ExactPrint
-
-
-
 parseFileModule
   :: FilePath
   -> IO (Either (SrcSpan, String) (DynFlags, Source))
@@ -64,15 +56,6 @@ main = do
     let l = taking 1 anyTodo
     holes <- holeInfo l src
     void $ defaultMain app $ defData l (listToMaybe holes)
-    -- for_ holes $ \(goal, scope) -> do
-    --   expr <- tactic goal (fmap (first nameOccName) scope) $ do
-    --     apply
-    --   src' <- spliceTree (todo 0) (fromJust expr) src
-    --   record src'
-
-    -- Source anns' lmod' <- focus
-    -- trace $ exactPrint lmod' anns'
-
 
 
 stateAndInput :: s -> Sem (Input s ': State s ': r) a -> Sem r a
