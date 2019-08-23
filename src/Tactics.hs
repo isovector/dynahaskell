@@ -39,7 +39,7 @@ import TyCoRep
 import TyCon
 import Type
 import Types
-import TcType (tcSplitSigmaTy)
+import TcType (tcSplitSigmaTy, tcSplitFunTys)
 
 newtype CType = CType { unCType :: Type }
 
@@ -228,11 +228,11 @@ mkGoodName in_scope t = do
 
 
 mkTyName :: Type -> String
-mkTyName (splitFunTys         -> ([splitFunTys -> ([], a)], b)) = "f" ++ mkTyName a ++ mkTyName b
-mkTyName (splitFunTys         -> ((_:_), b))                    = "f_" ++ mkTyName b
-mkTyName (splitTyConApp_maybe -> Just (c, args))                = mkTyConName c ++ foldMap mkTyName args
-mkTyName (getTyVar_maybe      -> Just tv)                       = occNameString $ occName tv
-mkTyName (tcSplitSigmaTy      -> ((_:_), _, t))                 = mkTyName t
+mkTyName (tcSplitFunTys       -> ([a@(isFunTy -> False)], b)) = "f" ++ mkTyName a ++ mkTyName b
+mkTyName (tcSplitFunTys       -> ((_:_), b))                  = "f_" ++ mkTyName b
+mkTyName (splitTyConApp_maybe -> Just (c, args))              = mkTyConName c ++ foldMap mkTyName args
+mkTyName (getTyVar_maybe      -> Just tv)                     = occNameString $ occName tv
+mkTyName (tcSplitSigmaTy      -> ((_:_), _, t))               = mkTyName t
 mkTyName _ = "x"
 
 
