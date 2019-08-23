@@ -16,6 +16,7 @@ module Tactics
   , destruct
   , dobodyblock
   , dobindblock
+  , homo
   , Tactic
   ) where
 
@@ -119,9 +120,8 @@ intro = rule $ \(Judgement hy g) ->
 getInScope :: [(OccName, a)] -> [OccName]
 getInScope = fmap fst
 
-
-destruct :: TacticMems r => OccName -> Tactic r
-destruct term = rule $ \(Judgement hy g) -> do
+destruct' :: TacticMems r => (DataCon -> Judgement -> Rule r) -> OccName -> Tactic r
+destruct' f term = rule $ \(Judgement hy g) -> do
   case find ((== term) . fst) hy of
     Nothing -> throwError $ UndefinedHypothesis term
     Just (_, t) ->
@@ -145,13 +145,20 @@ destruct term = rule $ \(Judgement hy g) -> do
                           n <- names
                           pure $ noLoc $ VarPat NoExt . noLoc $ Unqual n
 
-              sg <- subgoal $ Judgement (zip names (fmap CType args) ++ hy) g
+              sg <- f dc $ Judgement (zip names (fmap CType args) ++ hy) g
               pure
                 $ noLoc
                 $ Match NoExt CaseAlt [noLoc pat]
                 $ GRHSs NoExt [noLoc $ GRHS NoExt [] sg]
                 $ noLoc
                 $ EmptyLocalBinds NoExt
+
+
+destruct :: TacticMems r => OccName -> Tactic r
+destruct = destruct' $ const subgoal
+
+homo :: TacticMems r => OccName -> Tactic r
+homo = destruct' $ \dc (Judgement hy (CType g)) -> buildDataCon hy dc (snd $ splitAppTys g)
 
 
 dobodyblock :: TacticMems r => Tactic r

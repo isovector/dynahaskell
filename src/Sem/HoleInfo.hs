@@ -25,7 +25,7 @@ holeInfo l t = do
   let hole = mkVar $ "_hole" ++ show i
   v <- typecheck =<< spliceTree l (noLoc hole) t
   pure $ case v of
-    Nothing -> []
+    Nothing -> error "typechecking failed"
     Just tc -> holeInfoForName ("_hole" ++ show i) tc
 
 

@@ -49,6 +49,8 @@ vim = T.fromList $ fmap (mapChars *** Last . Just)
   -- Editing/tactics
   , "a"  --> invalidating $ tactful auto
   , "t"  --> invalidating $ tactful one
+  , "h"  --> sem . prompt "Homo" $ \d ->
+                 tactfulInvalid $ homo (mkVarOcc d) >> auto
   , "d"  --> sem . prompt "Destruct"
                  $ tactfulInvalid . destruct . mkVarOcc
   , "e"  --> sem . prompt "Edit" $ \c st -> flip invalidateSuccess st
