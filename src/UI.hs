@@ -35,20 +35,29 @@ vim
                   -> T.EventM Names (Sem r) (T.Next (Sem r) (Data r))
                    ))
 vim = T.fromList $ fmap (mapChars *** Last . Just)
+  -- Navigation
   [ "gg" --> continuing $ vScrollToBeginning scroller
   , "G"  --> continuing $ vScrollToEnd scroller
   , "j"  --> continuing $ vScrollBy scroller 1
   , "k"  --> continuing $ vScrollBy scroller (-1)
+
+  -- Undo/redo
   , "←"  --> invalidating (<$ undo)
   , "→"  --> invalidating (<$ redo)
+
+  -- Editing/tactics
   , "a"  --> invalidating $ tactful auto
   , "t"  --> invalidating $ tactful one
+  , "m"  --> invalidating $ tactful doblock
   , "d"  --> sem . prompt "Destruct"
                  $ tactfulInvalid . destruct . mkVarOcc
   , "e"  --> sem . prompt "Edit" $ \c st -> flip invalidateSuccess st
                  $ edit (dTarget st) c
-  , "i"  --> sem . prompt "Intro Name" $ \nm -> prompt "Intro Type"
-                 $ invalidateSuccess . introduceTopLevel nm
+  , "i"  --> sem . prompt "Intro Name" $ \nm ->
+                   prompt "Intro Type" $ \ty ->
+               invalidateSuccess $ introduceTopLevel nm ty
+
+  -- Quit
   , "q" --> M.halt
   ]
 

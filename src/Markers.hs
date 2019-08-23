@@ -7,5 +7,5 @@ solve :: a
 solve = error "solve"
 
 underway :: Int -> a -> a
-underway = error "underway"
+underway = const id
 

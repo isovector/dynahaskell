@@ -14,12 +14,39 @@ import Var
 
 pattern Todo :: Integer -> LExpr
 pattern Todo n <- L _ (HsApp _ (L _ (HsVar _ (L _ (Unqual (occNameString -> "todo")))))
-                                (L _ (HsOverLit _ (OverLit _ (HsIntegral (IL _ _ n)) _))))
+                               (IntLiteral n))
   where
     Todo n =
       noLoc (HsApp noExt
                    (noLoc (HsVar noExt (noLoc (Unqual (mkVarOcc "todo")))))
-                   (noLoc (HsOverLit noExt (OverLit noExt (HsIntegral i) (HsLit noExt (HsInt noExt i))))))
+                   (IntLiteral n))
+
+
+pattern Underway :: Integer -> LExpr -> LExpr
+pattern Underway n e
+  <- L _ (OpApp _ (L _ (HsApp _ (L _ (HsVar _ (L _ (Unqual (occNameString -> "underway")))))
+                                     (IntLiteral n)))
+                  _ e)
+  where
+    Underway n e =
+      noLoc
+      $ OpApp noExt
+              (noLoc
+               $ HsApp noExt
+                       (noLoc $ HsVar noExt $ noLoc $ Unqual $ mkVarOcc "underway")
+                       (IntLiteral n))
+              (noLoc $ HsVar noExt $ noLoc $ Unqual $ mkVarOcc "$")
+              e
+
+
+pattern IntLiteral :: Integer -> LExpr
+pattern IntLiteral n <- L _ (HsOverLit _ (OverLit _ (HsIntegral (IL _ _ n)) _))
+  where
+    IntLiteral n = noLoc
+                 $ HsOverLit noExt
+                 $ OverLit noExt (HsIntegral i)
+                 $ HsLit noExt
+                 $ HsInt noExt i
       where
         i = IL (SourceText $ show n) False n
 

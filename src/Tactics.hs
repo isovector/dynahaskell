@@ -14,6 +14,7 @@ module Tactics
   , assumption
   , intro
   , destruct
+  , doblock
   , Tactic
   ) where
 
@@ -151,6 +152,27 @@ destruct term = rule $ \(Judgement hy g) -> do
                 $ EmptyLocalBinds NoExt
 
 
+doblock :: TacticMems r => Tactic r
+doblock = rule $ \(Judgement hy g@(CType t)) -> do
+  case isItAMonad t of
+    False -> throwError $ GoalMismatch "doblock" g
+    True -> do
+      i <- sem fresh
+      sg <- subgoal $ Judgement hy g
+      pure $ Underway i
+           $ noLoc
+           $ HsDo noExt DoExpr
+           $ noLoc
+           $ pure
+           $ noLoc
+           $ BodyStmt noExt sg noSyntaxExpr noSyntaxExpr
+
+
+isItAMonad :: Type -> Bool
+isItAMonad (splitAppTys -> (_, t@(_:_))) = not $ isFunTy $ typeKind $ last t
+isItAMonad _ = False
+
+
 apply :: TacticMems r => Tactic r
 apply = rule $ \(Judgement hy g) -> do
   -- pprTraceM "hys" $ vcat
@@ -243,7 +265,6 @@ tactic ty hy t = do
     . runTacticT t
     . Judgement (fmap (second CType) hy)
     $ CType ty
-
 
 
 deepen :: TacticMems r => Int -> Tactic r
