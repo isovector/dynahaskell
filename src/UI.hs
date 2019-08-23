@@ -17,6 +17,7 @@ import           Data.Maybe
 import           Data.Monoid
 import           EditorActions
 import qualified Graphics.Vty as V
+import           MarkerUtils
 import           Name
 import           Outputable (ppr, text)
 import           Polysemy
@@ -48,7 +49,6 @@ vim = T.fromList $ fmap (mapChars *** Last . Just)
   -- Editing/tactics
   , "a"  --> invalidating $ tactful auto
   , "t"  --> invalidating $ tactful one
-  , "m"  --> invalidating $ tactful doblock
   , "d"  --> sem . prompt "Destruct"
                  $ tactfulInvalid . destruct . mkVarOcc
   , "e"  --> sem . prompt "Edit" $ \c st -> flip invalidateSuccess st
@@ -56,6 +56,15 @@ vim = T.fromList $ fmap (mapChars *** Last . Just)
   , "i"  --> sem . prompt "Intro Name" $ \nm ->
                    prompt "Intro Type" $ \ty ->
                invalidateSuccess $ introduceTopLevel nm ty
+
+  -- Monadic stuff
+  , "moa"  --> invalidating $ tactful dobodyblock
+  , "mob"  --> sem . prompt "Bind Name"
+                 $ tactfulInvalid . dobindblock
+  , "ma"   --> invalidating $ purely $ doaction $ anyUnderway . underwayStmts
+  , "mb"   --> sem . prompt "Bind Name" $ \nm st ->
+                 flip invalidateSuccess st $
+                   Just () <$ (dobind nm $ anyUnderway . underwayStmts)
 
   -- Quit
   , "q" --> M.halt

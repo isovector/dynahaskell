@@ -12,6 +12,9 @@ data Fonk a = Fonk Int Bool (a, String)
 
 newtype Cont a = Cont (forall r. (a -> r) -> r)
 
-test :: (a -> b) -> Cont a -> Cont b
+test :: Maybe Int
 test = todo 0
+
+testCont :: (a -> b) -> Cont a -> Cont b
+testCont = todo 1
 

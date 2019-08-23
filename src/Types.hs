@@ -16,6 +16,7 @@ module Types
   , RdrName (..)
   , _Ctor'
   , position
+  , position'
   , field
   , field'
   , module BasicTypes

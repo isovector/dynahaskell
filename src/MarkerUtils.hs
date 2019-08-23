@@ -10,6 +10,8 @@ import Data.Data.Lens
 import Types
 import Name hiding (varName)
 import Var
+import MarkerLenses
+import GenericOrphans ()
 
 
 pattern Todo :: Integer -> LExpr
@@ -74,6 +76,15 @@ anyTodo :: Data a => Traversal' a LExpr
 anyTodo = locate \case
   Todo _ -> True
   _ -> False
+
+anyUnderway :: Data a => Traversal' a LExpr
+anyUnderway = locate \case
+  Underway _ _ -> True
+  _ -> False
+
+underwayStmts :: Traversal' LExpr [ExprLStmt GhcPs]
+underwayStmts = anyUnderway . loc . _Ctor' @"OpApp" . _4 . loc . _Ctor' @"HsDo" . _3 . loc
+
 
 mkVar :: String -> Expr
 mkVar = HsVar NoExt . noLoc . Unqual . mkVarOcc

@@ -14,19 +14,21 @@ module Tactics
   , assumption
   , intro
   , destruct
-  , doblock
+  , dobodyblock
+  , dobindblock
   , Tactic
   ) where
 
-import Control.Monad.State
-import Data.Char
 import Control.Lens hiding (at)
 import Control.Monad.Except
+import Control.Monad.State
 import Data.Bifunctor
+import Data.Char
 import Data.Function
 import Data.List
 import Data.Traversable
 import DataCon
+import HsExprUtils
 import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import MarkerUtils
 import Name hiding (varName)
@@ -35,11 +37,11 @@ import Polysemy
 import Polysemy.Input
 import Refinery.Tactic
 import Sem.Fresh
+import TcType (tcSplitSigmaTy, tcSplitFunTys)
 import TyCoRep
 import TyCon
 import Type
 import Types
-import TcType (tcSplitSigmaTy, tcSplitFunTys)
 
 newtype CType = CType { unCType :: Type }
 
@@ -152,10 +154,10 @@ destruct term = rule $ \(Judgement hy g) -> do
                 $ EmptyLocalBinds NoExt
 
 
-doblock :: TacticMems r => Tactic r
-doblock = rule $ \(Judgement hy g@(CType t)) -> do
+dobodyblock :: TacticMems r => Tactic r
+dobodyblock = rule $ \(Judgement hy g@(CType t)) -> do
   case isItAMonad t of
-    False -> throwError $ GoalMismatch "doblock" g
+    False -> throwError $ GoalMismatch "dobodyblock" g
     True -> do
       i <- sem fresh
       sg <- subgoal $ Judgement hy g
@@ -164,8 +166,25 @@ doblock = rule $ \(Judgement hy g@(CType t)) -> do
            $ HsDo noExt DoExpr
            $ noLoc
            $ pure
+           $ buildBodyStmt sg
+
+
+dobindblock :: TacticMems r => String -> Tactic r
+dobindblock nm = rule $ \(Judgement hy g@(CType t)) -> do
+  case isItAMonad t of
+    False -> throwError $ GoalMismatch "dobindblock" g
+    True -> do
+      i <- sem fresh
+      sg1 <- subgoal $ Judgement hy g
+      -- TODO(sandy): this is wrong; sg2 should have sg1 bound at nm
+      sg2 <- subgoal $ Judgement hy g
+      pure $ Underway i
            $ noLoc
-           $ BodyStmt noExt sg noSyntaxExpr noSyntaxExpr
+           $ HsDo noExt DoExpr
+           $ noLoc
+             [ buildBindStmt nm sg1
+             , buildBodyStmt sg2
+             ]
 
 
 isItAMonad :: Type -> Bool
@@ -228,11 +247,11 @@ mkGoodName in_scope t = do
 
 
 mkTyName :: Type -> String
-mkTyName (tcSplitFunTys       -> ([a@(isFunTy -> False)], b)) = "f" ++ mkTyName a ++ mkTyName b
-mkTyName (tcSplitFunTys       -> ((_:_), b))                  = "f_" ++ mkTyName b
-mkTyName (splitTyConApp_maybe -> Just (c, args))              = mkTyConName c ++ foldMap mkTyName args
-mkTyName (getTyVar_maybe      -> Just tv)                     = occNameString $ occName tv
-mkTyName (tcSplitSigmaTy      -> ((_:_), _, t))               = mkTyName t
+mkTyName (tcSplitFunTys -> ([a@(isFunTy -> False)], b)) = "f" ++ mkTyName a ++ mkTyName b
+mkTyName (tcSplitFunTys -> ((_:_), b))                  = "f_" ++ mkTyName b
+mkTyName (splitTyConApp_maybe -> Just (c, args))        = mkTyConName c ++ foldMap mkTyName args
+mkTyName (getTyVar_maybe-> Just tv)                     = occNameString $ occName tv
+mkTyName (tcSplitSigmaTy-> ((_:_), _, t))               = mkTyName t
 mkTyName _ = "x"
 
 

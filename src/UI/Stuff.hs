@@ -114,6 +114,10 @@ invalidating m st = do
     updateContext st'
 
 
+purely :: Functor f => f b -> a -> f a
+purely m st = st <$ m
+
+
 continuing :: Monad m => EventM n m a -> s -> EventM n m (Next m s)
 continuing m st = m >> continue st
 

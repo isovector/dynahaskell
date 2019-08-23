@@ -5,6 +5,7 @@ import Data.Data.Lens
 import Data.Traversable
 import GenericOrphans ()
 import Generics.SYB (everywhereM, mkM)
+import HsExprUtils
 import Language.Haskell.GHC.ExactPrint.Parsers (parseExpr, parseDecl)
 import Language.Haskell.GHC.ExactPrint.Transform (setPrecedingLines)
 import MarkerLenses
@@ -41,7 +42,29 @@ edit targ c = do
 ------------------------------------------------------------------------------
 
 
+doaction :: Mems r => Traversal' LModule [ExprLStmt GhcPs] -> Sem r ()
+doaction targ = do
+  td <- newTodo
+  record
+    =<< appendNode
+          (taking 1 targ)
+          (buildBodyStmt td)
+    =<< focus
 
+
+dobind :: Mems r => String -> Traversal' LModule [ExprLStmt GhcPs] -> Sem r ()
+dobind nm targ = do
+  td1 <- newTodo
+  td2 <- newTodo
+  record
+    -- TODO(sandy): use doaction directly here
+    =<< appendNode
+          (taking 1 targ)
+          (buildBodyStmt td2)
+    =<< appendNode
+          (taking 1 targ)
+          (buildBindStmt nm td1)
+    =<< focus
 
 
 ------------------------------------------------------------------------------

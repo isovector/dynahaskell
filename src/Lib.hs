@@ -26,6 +26,12 @@ import Types
 import UI
 import Zipper
 
+import Control.Lens
+import EditorActions
+import MarkerLenses
+import Printers
+import Outputable
+
 
 parseFileModule
   :: FilePath
@@ -53,6 +59,11 @@ main = do
        . stateAndInput (Zipper [] src [])
        . runAnno
        $ do
+    -- doaction (anyUnderway . loc . _Ctor' @"OpApp" . _3 . loc . _Ctor' @"HsDo" . _3)
+    -- z <- focus
+    -- pprTraceM "yo" $ ppr $ z ^? anyUnderway . loc . _Ctor' @"OpApp" . _4 . loc
+    -- trace $ prettySource z
+
     let l = taking 1 anyTodo
     holes <- holeInfo l src
     void $ defaultMain app $ defData l (listToMaybe holes)
