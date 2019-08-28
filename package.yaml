@@ -38,6 +38,7 @@ dependencies:
 - semigroupoids
 - free
 - unipatterns
+- text
 
 default-extensions:
 - FlexibleContexts

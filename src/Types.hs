@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans       #-}
 
 module Types
   ( module Types
@@ -24,6 +24,7 @@ module Types
   , Type
   ) where
 
+import GHC.Generics
 import Data.Data
 import BasicTypes
 import Data.Generics.Product.Positions
@@ -49,7 +50,7 @@ data Source = Source
   { sourceAnns :: Anns
   , sourceMod :: LModule
   }
-  deriving Data
+  deriving (Data, Generic)
 
 deriving instance Data Annotation
 

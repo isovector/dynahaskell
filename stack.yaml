@@ -13,9 +13,9 @@ extra-deps:
 
 setup-info:
   ghc:
-    linux64-custom-zonked-tinfo6:
+    linux64-custom-zonked2-tinfo6:
       8.6.5:
         url: "https://downloads.haskell.org/~ghc/8.4.4/ghc-8.4.4-x86_64-deb9-linux-dwarf.tar.xz"
         sha256: f9cac6e402c71d7251f2e22f412fb4abd72c64f34481a1e548cd7f6ff2352a07
 
-ghc-variant: custom-zonked
+ghc-variant: custom-zonked2

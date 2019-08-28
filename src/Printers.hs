@@ -2,15 +2,18 @@
 
 module Printers where
 
-import Control.Lens
-import FastString
-import GHC
-import Generics.SYB hiding (Generic, empty)
-import Language.Haskell.GHC.ExactPrint
-import Outputable
-import Polysemy
-import Sem.Fresh
-import Types
+import  GHC hiding (getAnnotation)
+import  Polysemy
+import  Sem.Fresh
+import  Types
+import  Language.Haskell.GHC.ExactPrint
+import  Language.Haskell.GHC.ExactPrint.Print
+import  Language.Haskell.GHC.ExactPrint.Types
+import  Generics.SYB hiding (Generic, empty)
+import  Outputable
+import  Control.Lens
+import  FastString
+import  Annotations
 
 
 ok :: (Data a, Member (Fresh Integer) r) => a -> Sem r a
@@ -30,6 +33,18 @@ uniqueSpan = do
 prettySource :: Source -> String
 prettySource (Source anns lmod) = exactPrint lmod anns
 
+annotatedSource :: Source -> [Annotated String]
+annotatedSource (Source anns lmod) = runIdentity $ exactPrintWithOptions annotatedPrintOpts lmod anns
+
 pprToString :: DynFlags -> SDoc -> String
 pprToString d = pprDebugAndThen d id empty
+
+
+annotatedPrintOpts :: PrintOptions Identity [Annotated String]
+annotatedPrintOpts =
+  printOptions
+    (\ast -> pure . fmap (maybe id addAnnotation $ getAnnotation =<< cast ast))
+    (pure . pure . unAnnotated)
+    (pure . pure . unAnnotated)
+    NormalLayout
 

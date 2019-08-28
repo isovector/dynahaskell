@@ -4,8 +4,11 @@
 
 module UI where
 
+import Graphics.Vty.Attributes
+import           Annotations
 import           Brick hiding (loc)
 import qualified Brick.Main as M
+import           Brick.Markup
 import qualified Brick.Types as T
 import           Brick.Widgets.Border
 import           Brick.Widgets.Border.Style
@@ -15,6 +18,8 @@ import           Control.Arrow ((***))
 import           Control.Lens hiding (holes)
 import           Data.Maybe
 import           Data.Monoid
+import qualified Data.Text as T
+import qualified Data.Text.Markup as MU
 import           EditorActions
 import qualified Graphics.Vty as V
 import           MarkerUtils
@@ -85,8 +90,11 @@ drawUi st = do
       [ viewport Code Vertical
           . cached CodeCache
           . padRight Max
-          . padAll 1 . str
-          $ prettySource src
+          . padAll 1
+          . markup
+          . buildMarkup
+          . annotatedSource
+          $ src & position @2 . dTarget st %~ annotate Targeted
       , vBorder
       , hLimit 70 $ vBox
         [ hCenter $ str $ pprToString dflags $ maybe (text "") (ppr . fst) $ dHoleInfo st
@@ -109,12 +117,21 @@ drawUi st = do
     ]
 
 
+buildMarkup :: [Annotated String] -> MU.Markup AttrName
+buildMarkup =
+  MU.fromList
+  . fmap (\(Annotated as a) -> (T.pack a, foldMap (attrName . show) as))
+
+
 app :: Mems r => M.App (Data r) e Names (Sem r)
 app = M.App
   { M.appDraw         = drawUi
   , M.appStartEvent   = pure
   , M.appHandleEvent  = appEvent
-  , M.appAttrMap      = const $ attrMap V.defAttr []
+  , M.appAttrMap      = const $ attrMap V.defAttr $
+      [ (attrName $ show Targeted,  defAttr `withForeColor` blue)
+      , (attrName $ show TypeError, defAttr `withForeColor` red)
+      ]
   , M.appChooseCursor = const listToMaybe
   }
 

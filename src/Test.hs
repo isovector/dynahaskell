@@ -6,6 +6,9 @@ module Test where
 
 import Markers
 
-fmapE :: (b -> c) -> Either a b -> Either a c
-fmapE = todo 0
+data Cont a = Cont (forall r. (a -> r) -> r)
+
+fmapC :: (a -> b) -> Cont a -> Cont b
+fmapC = todo 0
+
 

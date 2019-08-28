@@ -61,7 +61,7 @@ data Judgement = Judgement [(OccName, CType)] CType
   deriving (Eq, Ord)
 
 instance Outputable Judgement where
-  ppr (Judgement hy g) = "goal: " <+> ppr g <+> vcat (fmap ppr hy)
+  ppr (Judgement hy g) = "goal: " <+> ppr g $$ text "hypothesis: " <+> vcat (fmap ppr hy)
 
 
 data TacticError
@@ -302,8 +302,8 @@ deepen depth = do
 auto :: TacticMems r => Tactic r
 auto = do
   g <- goal
-  intro <!> assumption <!> split <!> apply <!> throwError (UnsolvedSubgoals [g])
-  auto
+  pprTraceM "goal" $ ppr g
+  (intro >> auto) <!> (assumption >> auto) <!> (split >> auto) <!> (apply >> auto) <!> pure ()
 
 one :: TacticMems r => Tactic r
 one = intro <!> assumption <!> split <!> apply <!> pure ()
