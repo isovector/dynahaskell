@@ -10,6 +10,7 @@ import           Control.Lens hiding (holes)
 import           Data.Bifunctor
 import           Data.Foldable
 import           Data.Maybe
+import           GHC (SrcSpan)
 import           GenericOrphans ()
 import qualified Graphics.Vty as V
 import           Name
@@ -27,7 +28,7 @@ import           Types
 import           Zipper
 
 
-data Names = Editor | Code | CodeCache
+data Names = Editor | Code | CodeCache | Clickable [SrcSpan]
   deriving (Eq, Ord, Show)
 
 type Action r = Data r -> T.EventM Names (Sem r) (T.Next (Sem r) (Data r))
@@ -55,6 +56,7 @@ type Mems r =
      , Input DynFlags
      , State (Zipper Source)
      , Fresh Integer
+     , Embed IO
      ] r
 
 

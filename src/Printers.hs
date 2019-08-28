@@ -43,7 +43,9 @@ pprToString d = pprDebugAndThen d id empty
 annotatedPrintOpts :: PrintOptions Identity [Annotated String]
 annotatedPrintOpts =
   printOptions
-    (\ast -> pure . fmap (maybe id addAnnotation $ getAnnotation =<< cast ast))
+    (\ast@(L src _) -> pure
+                     . fmap (addAnnSpan src)
+                     . fmap (maybe id addAnnotation $ getAnnotation =<< cast ast))
     (pure . pure . unAnnotated)
     (pure . pure . unAnnotated)
     NormalLayout

@@ -13,15 +13,20 @@ data Annotation
   deriving (Eq, Ord, Show)
 
 data Annotated a
-  = Annotated [Annotation] a
+  = Annotated [Annotation] [SrcSpan] a
   deriving (Eq, Ord, Show, Functor)
 
 
 unAnnotated :: a -> Annotated a
-unAnnotated = Annotated []
+unAnnotated = Annotated [] []
+
 
 addAnnotation :: Annotation -> Annotated a -> Annotated a
-addAnnotation a (Annotated as b) = Annotated (a : as) b
+addAnnotation a (Annotated as src b) = Annotated (a : as) src b
+
+
+addAnnSpan :: SrcSpan -> Annotated a -> Annotated a
+addAnnSpan src (Annotated as srcs b) = Annotated as (src : srcs) b
 
 
 annotate :: Annotation -> LHsExpr GhcPs -> LHsExpr GhcPs
@@ -33,5 +38,5 @@ getAnnotation (L _ (HsPar ann _)) =
   case unsafeCoerce ann of
     NoAnnotation -> Nothing
     x -> Just x
-getAnnotation _                   = Nothing
+getAnnotation _ = Nothing
 

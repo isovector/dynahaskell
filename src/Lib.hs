@@ -26,12 +26,6 @@ import Types
 import UI
 import Zipper
 
-import Control.Lens
-import EditorActions
-import MarkerLenses
-import Printers
-import Outputable
-
 
 parseFileModule
   :: FilePath
@@ -49,8 +43,7 @@ main = do
   (dflags, src) <- parseFileModule file >>= \case
     Right (dflags, src) -> pure (dflags, src)
     Left a -> error $ show a
-  let dflags' = dflags
-        -- gopt_set dflags Opt_SuppressUniques
+  let dflags' = gopt_set dflags Opt_SuppressUniques
 
   runGHC file
        . traceToIO

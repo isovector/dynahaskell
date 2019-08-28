@@ -4,11 +4,9 @@
 
 module UI where
 
-import Graphics.Vty.Attributes
 import           Annotations
 import           Brick hiding (loc)
 import qualified Brick.Main as M
-import           Brick.Markup
 import qualified Brick.Types as T
 import           Brick.Widgets.Border
 import           Brick.Widgets.Border.Style
@@ -16,31 +14,39 @@ import           Brick.Widgets.Center
 import           Brick.Widgets.Edit
 import           Control.Arrow ((***))
 import           Control.Lens hiding (holes)
+import           Control.Monad
+import           Control.Monad.IO.Class
 import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Text as T
 import qualified Data.Text.Markup as MU
+import           Data.Traversable
 import           EditorActions
+import           GHC
 import qualified Graphics.Vty as V
+import           Graphics.Vty.Attributes
 import           MarkerUtils
 import           Name
-import           Outputable (ppr, text)
+import           Outputable (ppr, text, pprTraceM)
 import           Polysemy
 import           Polysemy.Input
 import           Printers
 import           Tactics
-import qualified Trie as T
+import qualified Trie as Trie
 import           Types
 import           UI.Stuff
 import           Zipper
 
+import Graphics.Vty hiding (Input, text)
+import Graphics.Vty.Output.Interface
+
 
 vim
-    :: Mems r => T.Trie V.Key
+    :: Mems r => Trie.Trie V.Key
              (Last ( Data r
                   -> T.EventM Names (Sem r) (T.Next (Sem r) (Data r))
                    ))
-vim = T.fromList $ fmap (mapChars *** Last . Just)
+vim = Trie.fromList $ fmap (mapChars *** Last . Just)
   -- Navigation
   [ "gg" --> continuing $ vScrollToBeginning scroller
   , "G"  --> continuing $ vScrollToEnd scroller
@@ -88,7 +94,7 @@ drawUi st = do
        $ vBox
     [ hBox
       [ viewport Code Vertical
-          . cached CodeCache
+          -- . cached CodeCache
           . padRight Max
           . padAll 1
           . markup
@@ -117,16 +123,36 @@ drawUi st = do
     ]
 
 
-buildMarkup :: [Annotated String] -> MU.Markup AttrName
+markup :: MU.Markup ([Annotation], [SrcSpan]) -> Widget Names
+markup m =
+  let mlines = MU.markupToList m
+   in vBox $ do
+        line <- mlines
+        pure $ hBox $
+          case line of
+            [] -> pure $ str " "
+            _ -> do
+             (t, (anns, srcs)) <- line
+             pure . withAttr (foldMap (attrName . show) anns)
+                  . clickable (Clickable srcs)
+                  $ txt t
+
+
+buildMarkup :: [Annotated String] -> MU.Markup ([Annotation], [SrcSpan])
 buildMarkup =
   MU.fromList
-  . fmap (\(Annotated as a) -> (T.pack a, foldMap (attrName . show) as))
+  . fmap (\(Annotated as src a) -> (T.pack a, (as, src)))
 
 
 app :: Mems r => M.App (Data r) e Names (Sem r)
 app = M.App
   { M.appDraw         = drawUi
-  , M.appStartEvent   = pure
+  , M.appStartEvent   = \st -> do
+      vty <- Brick.getVtyHandle
+      let output = outputIface vty
+      when (supportsMode output Mouse) $
+        liftIO $ setMode output Mouse True
+      pure st
   , M.appHandleEvent  = appEvent
   , M.appAttrMap      = const $ attrMap V.defAttr $
       [ (attrName $ show Targeted,  defAttr `withForeColor` blue)
@@ -141,7 +167,7 @@ defData
     => Traversal' LModule LExpr
     -> Maybe (Type, [(Name, Type)])
     -> Data r
-defData = Data Nothing resetEditor (T.Vim vim vim)
+defData = Data Nothing resetEditor (Trie.Vim vim vim)
 
 
 appEvent
@@ -149,6 +175,11 @@ appEvent
     => Data r
     -> T.BrickEvent Names e
     -> T.EventM Names (Sem r) (T.Next (Sem r) (Data r))
+appEvent st (T.MouseDown (Clickable srcs) _ _ _) = do
+  invalidateCacheEntry CodeCache
+  M.continue $ st
+    { dTarget = locate $ \(L src _) -> last srcs == src
+    }
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt st
 appEvent st (T.VtyEvent e) | Just (_, cont) <- dEditCont st = do
   case e of
@@ -171,7 +202,7 @@ appEvent st (T.VtyEvent e) | Just (_, cont) <- dEditCont st = do
         { dEditor = edit'
         }
 appEvent st (T.VtyEvent (V.EvKey k [])) = do
-  case T.pump (dVimDFA st) k of
+  case Trie.pump (dVimDFA st) k of
     (Just a, v)  -> a $ st { dVimDFA = v }
     (Nothing, v) -> continue $ st { dVimDFA = v }
 appEvent st _ = M.continue st
