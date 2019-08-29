@@ -116,6 +116,15 @@ invalidating m st = do
     updateContext st'
 
 
+selecting
+  :: Mems r => Traversal' LModule LExpr -> Data r -> EventM Names (Sem r) (Next (Sem r) (Data r))
+selecting t st = do
+  invalidateCacheEntry CodeCache
+  M.continue $ st
+    { dTarget = t
+    }
+
+
 purely :: Functor f => f b -> a -> f a
 purely m st = st <$ m
 

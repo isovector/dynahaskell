@@ -90,7 +90,6 @@ assumption = rule $ \(Judgement hy g) ->
     Just (v, _) -> pure $ noLoc $ HsVar NoExt $ noLoc $ Unqual v
     Nothing -> throwError $ GoalMismatch "assumption" g
 
--- nice
 
 sem
     :: MonadTrans t
@@ -272,8 +271,9 @@ syntactically
     => String
     -> Sem r LExpr
 syntactically str = do
+  i <- fresh
   dflags <- input
-  case parseExpr dflags "syntactically" str of
+  case parseExpr dflags ("syntactically+" ++ show i) str of
     Left _ -> error $ "you called syntactically badly, on " ++ str
     Right (_, expr) -> do
       pure expr

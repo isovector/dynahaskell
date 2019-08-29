@@ -17,16 +17,24 @@ import  Annotations
 
 
 ok :: (Data a, Member (Fresh Integer) r) => a -> Sem r a
-ok = everywhereM (mkM mkSrc)
+ok = fmap sameVarSpans . everywhereM (mkM mkSrc)
   where
     mkSrc s | s == noSrcSpan = uniqueSpan
             | otherwise = pure s
 
 
+sameVarSpans :: Data a => a -> a
+sameVarSpans = everywhere $ mkT sameSrc
+  where
+    sameSrc :: LExpr -> LExpr
+    sameSrc (L _ (HsVar b q@(L c _))) = L c (HsVar b q)
+    sameSrc z = z
+
+
 uniqueSpan :: Member (Fresh Integer) r => Sem r SrcSpan
 uniqueSpan = do
   col <- fromInteger <$> fresh
-  let pos = mkSrcLoc (mkFastString "ghc-exactprint") (-1) col
+  let pos = mkSrcLoc (mkFastString "uniqueSpan") (-1) col
   return $ mkSrcSpan pos pos
 
 

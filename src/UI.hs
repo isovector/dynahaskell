@@ -20,14 +20,13 @@ import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Text as T
 import qualified Data.Text.Markup as MU
-import           Data.Traversable
 import           EditorActions
 import           GHC
 import qualified Graphics.Vty as V
-import           Graphics.Vty.Attributes
+import           Graphics.Vty hiding (Input, text)
 import           MarkerUtils
 import           Name
-import           Outputable (ppr, text, pprTraceM)
+import           Outputable (ppr, text)
 import           Polysemy
 import           Polysemy.Input
 import           Printers
@@ -36,9 +35,6 @@ import qualified Trie as Trie
 import           Types
 import           UI.Stuff
 import           Zipper
-
-import Graphics.Vty hiding (Input, text)
-import Graphics.Vty.Output.Interface
 
 
 vim
@@ -52,6 +48,9 @@ vim = Trie.fromList $ fmap (mapChars *** Last . Just)
   , "G"  --> continuing $ vScrollToEnd scroller
   , "j"  --> continuing $ vScrollBy scroller 1
   , "k"  --> continuing $ vScrollBy scroller (-1)
+
+  -- Selection
+  , "st" --> selecting $ taking 1 anyTodo
 
   -- Undo/redo
   , "←"  --> invalidating (<$ undo)
@@ -175,11 +174,8 @@ appEvent
     => Data r
     -> T.BrickEvent Names e
     -> T.EventM Names (Sem r) (T.Next (Sem r) (Data r))
-appEvent st (T.MouseDown (Clickable srcs) _ _ _) = do
-  invalidateCacheEntry CodeCache
-  M.continue $ st
-    { dTarget = locate $ \(L src _) -> last srcs == src
-    }
+appEvent st (T.MouseDown (Clickable srcs) _ _ _) =
+  selecting (locate $ \(L src _) -> last srcs == src) st
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt st
 appEvent st (T.VtyEvent e) | Just (_, cont) <- dEditCont st = do
   case e of
