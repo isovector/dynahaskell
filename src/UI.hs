@@ -30,6 +30,7 @@ import           Outputable (ppr, text)
 import           Polysemy
 import           Polysemy.Input
 import           Printers
+import           Sem.FileProvider
 import           Tactics
 import qualified Trie as Trie
 import           Types
@@ -51,6 +52,12 @@ vim = Trie.fromList $ fmap (mapChars *** Last . Just)
 
   -- Selection
   , "st" --> selecting $ taking 1 anyTodo
+
+  -- File stuff
+  , ";;" --> sem $ (saveFile >>) . pure
+  , ":e" --> invalidating $ prompt "File" $ \f st -> do
+               editFile f
+               pure st
 
   -- Undo/redo
   , "←"  --> invalidating (<$ undo)

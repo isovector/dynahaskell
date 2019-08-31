@@ -1,5 +1,7 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE TupleSections       #-}
+
 module HIE.Bios.Load ( loadFileWithMessage, loadFile, setTargetFiles, setTargetFilesWithMessage) where
 
 import CoreMonad (liftIO)
@@ -8,12 +10,10 @@ import qualified GHC as G
 import qualified GhcMake as G
 import qualified HscMain as G
 import HscTypes
-import Outputable
 import Control.Monad.IO.Class
 
 import Data.IORef
 
-import System.Directory
 import Hooks
 import TcRnTypes (FrontendResult(..))
 import Control.Monad (forM, void)
@@ -27,10 +27,8 @@ import Data.Time.Clock
 loadFileWithMessage :: GhcMonad m
          => Maybe G.Messager
          -> (FilePath, FilePath)     -- ^ A target file.
-         -> m (Maybe TypecheckedModule, [TypecheckedModule])
+         -> m (Maybe (TypecheckedModule, DynFlags))
 loadFileWithMessage msg file = do
-  dir <- liftIO $ getCurrentDirectory
-  df <- getSessionDynFlags
   (_, tcs) <- collectASTs $ do
     (setTargetFilesWithMessage msg [file])
   let get_fp = ml_hs_file . ms_location . pm_mod_summary . tm_parsed_module
@@ -38,11 +36,12 @@ loadFileWithMessage msg file = do
       findMod (x:xs) = case get_fp x of
                          Just fp -> if fp `isSuffixOf` (snd file) then Just x else findMod xs
                          Nothing -> findMod xs
-  return (findMod tcs, tcs)
+  dflags <- getSessionDynFlags
+  return (fmap (, dflags) $ findMod tcs)
 
 loadFile :: (GhcMonad m)
          => (FilePath, FilePath)
-         -> m (Maybe TypecheckedModule, [TypecheckedModule])
+         -> m (Maybe (TypecheckedModule, DynFlags))
 loadFile = loadFileWithMessage (Just G.batchMsg)
 
 {-
@@ -78,7 +77,6 @@ setTargetFilesWithMessage msg files = do
     targets <- forM files guessTargetMapped
     G.setTargets (map (\t -> t { G.targetAllowObjCode = False }) targets)
     mod_graph <- updateTime targets =<< depanal [] False
-    dflags1 <- getSessionDynFlags
     void $ G.load' LoadAllTargets msg mod_graph
 
 collectASTs :: (GhcMonad m) => m a -> m (a, [TypecheckedModule])

@@ -1,7 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
 
-{-# OPTIONS_GHC -fdefer-type-errors #-}
-
 module Test where
 
 import Markers

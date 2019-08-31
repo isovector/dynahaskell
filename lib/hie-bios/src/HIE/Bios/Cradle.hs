@@ -21,6 +21,8 @@ import Data.FileEmbed
 import System.IO.Temp
 import Data.List
 
+import Outputable (pprPanic, empty)
+
 import System.PosixCompat.Files
 
 ----------------------------------------------------------------

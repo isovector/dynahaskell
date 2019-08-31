@@ -21,7 +21,10 @@ runTypechecker
     -> Sem r a
 runTypechecker = interpret \case
   Typecheck src -> do
-    embed $ writeFile "/tmp/dyna.hs" $ prettySource src
-    fmap fst $ embed $ loadFile @Ghc ("/tmp/dyna.hs", "/tmp/dyna.hs")
+    embed $ writeFile "/tmp/dyna.hs" $ mconcat
+      [ "{-# OPTIONS_GHC -fdefer-type-errors #-}\n"
+      , prettySource src
+      ]
+    fmap (fmap fst) $ embed $ loadFile @Ghc ("/tmp/dyna.hs", "/tmp/dyna.hs")
 
 

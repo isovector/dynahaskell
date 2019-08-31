@@ -18,6 +18,7 @@ import           Polysemy
 import           Polysemy.Input
 import           Polysemy.State
 import           Sem.Anns
+import           Sem.FileProvider
 import           Sem.Fresh
 import           Sem.Ghc
 import           Sem.HoleInfo
@@ -57,6 +58,7 @@ type Mems r =
      , State (Zipper Source)
      , Fresh Integer
      , Embed IO
+     , FileProvider
      ] r
 
 
