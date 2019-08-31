@@ -11,8 +11,10 @@ import qualified GhcMake as G
 import qualified HscMain as G
 import HscTypes
 import Control.Monad.IO.Class
+import DynamicLoading
 
 import Data.IORef
+import Data.Traversable
 
 import Hooks
 import TcRnTypes (FrontendResult(..))
@@ -77,7 +79,18 @@ setTargetFilesWithMessage msg files = do
     targets <- forM files guessTargetMapped
     G.setTargets (map (\t -> t { G.targetAllowObjCode = False }) targets)
     mod_graph <- updateTime targets =<< depanal [] False
-    void $ G.load' LoadAllTargets msg mod_graph
+    sums' <- for (mgModSummaries mod_graph) $ \mod_summary -> do
+#if __GLASGOW_HASKELL__ >= 806
+      hscEnv <- getSession
+      dynFlags <- liftIO $ initializePlugins hscEnv $ ms_hspp_opts mod_summary
+#else
+      dynFlags <- return dflags
+#endif
+      pure $ mod_summary { GHC.ms_hspp_opts = dynFlags }
+
+
+    let mod_graph' = mkModuleGraph sums'
+    void $ G.load' LoadAllTargets msg mod_graph'
 
 collectASTs :: (GhcMonad m) => m a -> m (a, [TypecheckedModule])
 collectASTs action = do
