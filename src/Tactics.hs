@@ -301,8 +301,6 @@ deepen depth = do
 
 auto :: TacticMems r => Tactic r
 auto = do
-  g <- goal
-  pprTraceM "goal" $ ppr g
   (intro >> auto) <!> (assumption >> auto) <!> (split >> auto) <!> (apply >> auto) <!> pure ()
 
 one :: TacticMems r => Tactic r

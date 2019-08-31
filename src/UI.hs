@@ -174,8 +174,10 @@ appEvent
     => Data r
     -> T.BrickEvent Names e
     -> T.EventM Names (Sem r) (T.Next (Sem r) (Data r))
-appEvent st (T.MouseDown (Clickable srcs) _ _ _) =
-  selecting (locate $ \(L src _) -> last srcs == src) st
+appEvent st (T.MouseDown (Clickable srcs) _ _ _) = do
+  M.performAction $ updateContext st
+    { dTarget = locate $ \(L src _) -> last srcs == src
+    }
 appEvent st (T.VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt st
 appEvent st (T.VtyEvent e) | Just (_, cont) <- dEditCont st = do
   case e of
