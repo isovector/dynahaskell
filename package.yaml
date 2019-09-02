@@ -39,6 +39,7 @@ dependencies:
 - free
 - unipatterns
 - text
+- pipes
 
 default-extensions:
 - FlexibleContexts

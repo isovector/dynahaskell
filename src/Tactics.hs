@@ -25,7 +25,6 @@ import Control.Monad.Except
 import Control.Monad.State
 import Data.Bifunctor
 import Data.Char
-import Data.Function
 import Data.List
 import Data.Traversable
 import DataCon
@@ -36,48 +35,16 @@ import Name hiding (varName)
 import Outputable
 import Polysemy
 import Polysemy.Input
-import Refinery.Tactic
+import Refinery.Tactic hiding (runTacticT)
 import Sem.Fresh
+import TacticsV2
 import TcType (tcSplitSigmaTy, tcSplitFunTys)
 import TyCoRep
 import TyCon
 import Type
 import Types
 
-newtype CType = CType { unCType :: Type }
 
-instance Outputable CType where
-  ppr (CType t) = ppr t
-
-instance Eq CType where
-  (==) = eqType `on` unCType
-
-instance Ord CType where
-  compare = nonDetCmpType `on` unCType
-
-
-
-data Judgement = Judgement [(OccName, CType)] CType
-  deriving (Eq, Ord)
-
-instance Outputable Judgement where
-  ppr (Judgement hy g) = "goal: " <+> ppr g $$ text "hypothesis: " <+> vcat (fmap ppr hy)
-
-
-data TacticError
-  = UndefinedHypothesis OccName
-  | GoalMismatch String CType
-  | UnsolvedSubgoals [Judgement]
-
-instance Outputable TacticError where
-  ppr (UndefinedHypothesis n) = "undefined hy: " <+> ppr n
-  ppr (GoalMismatch g (CType t)) = "goal mismatch: " <+> text g <+> ppr t
-  ppr (UnsolvedSubgoals gs) = "unsolved subgoals: " <+> vcat (fmap ppr gs)
-
-
-type Tactics r = TacticT Judgement LExpr (ProvableT Judgement (ExceptT TacticError (Sem r)))
-type Tactic r = Tactics r ()
-type Rule r = RuleT Judgement LExpr (ProvableT Judgement (ExceptT TacticError (Sem r))) LExpr
 
 type TacticMems r = Members
   '[ Fresh Integer
@@ -85,26 +52,20 @@ type TacticMems r = Members
    ] r
 
 assumption :: Tactic r
-assumption = rule $ \(Judgement hy g) ->
+assumption = rule $ \(Judgement _ hy g) ->
   case find ((== g) . snd) hy of
     Just (v, _) -> pure $ noLoc $ HsVar NoExt $ noLoc $ Unqual v
     Nothing -> throwError $ GoalMismatch "assumption" g
 
 
-sem
-    :: MonadTrans t
-    => Sem r a
-    -> t (ProvableT Judgement (ExceptT TacticError (Sem r))) a
-sem = lift . lift . lift
-
 
 intro :: forall r. TacticMems r => Tactic r
-intro = rule $ \(Judgement hy g) ->
+intro = rule $ \(Judgement _ hy g) ->
   case unCType g of
     (FunTy a b) -> do
       v <- sem $ mkGoodName (getInScope hy) a
       let vname = occNameString v
-      sg <- subgoal $ Judgement ((v, CType a) : hy) $ CType b
+      sg <- newSubgoal ((v, CType a) : hy) $ CType b
       e <- sem $ syntactically $ mconcat
              [ "\\"
              , vname
@@ -120,7 +81,7 @@ getInScope :: [(OccName, a)] -> [OccName]
 getInScope = fmap fst
 
 destruct' :: TacticMems r => (DataCon -> Judgement -> Rule r) -> OccName -> Tactic r
-destruct' f term = rule $ \(Judgement hy g) -> do
+destruct' f term = rule $ \(Judgement _ hy g) -> do
   case find ((== term) . fst) hy of
     Nothing -> throwError $ UndefinedHypothesis term
     Just (_, t) ->
@@ -144,7 +105,8 @@ destruct' f term = rule $ \(Judgement hy g) -> do
                           n <- names
                           pure $ noLoc $ VarPat NoExt . noLoc $ Unqual n
 
-              sg <- f dc $ Judgement (zip names (fmap CType args) ++ hy) g
+              j <- newJudgement (zip names (fmap CType args) ++ hy) g
+              sg <- f dc j
               pure
                 $ noLoc
                 $ Match NoExt CaseAlt [noLoc pat]
@@ -157,16 +119,16 @@ destruct :: TacticMems r => OccName -> Tactic r
 destruct = destruct' $ const subgoal
 
 homo :: TacticMems r => OccName -> Tactic r
-homo = destruct' $ \dc (Judgement hy (CType g)) -> buildDataCon hy dc (snd $ splitAppTys g)
+homo = destruct' $ \dc (Judgement _ hy (CType g)) -> buildDataCon hy dc (snd $ splitAppTys g)
 
 
 dobodyblock :: TacticMems r => Tactic r
-dobodyblock = rule $ \(Judgement hy g@(CType t)) -> do
+dobodyblock = rule $ \(Judgement _ hy g@(CType t)) -> do
   case isItAMonad t of
     False -> throwError $ GoalMismatch "dobodyblock" g
     True -> do
       i <- sem fresh
-      sg <- subgoal $ Judgement hy g
+      sg <- newSubgoal hy g
       pure $ Underway i
            $ noLoc
            $ HsDo noExt DoExpr
@@ -176,14 +138,14 @@ dobodyblock = rule $ \(Judgement hy g@(CType t)) -> do
 
 
 dobindblock :: TacticMems r => String -> Tactic r
-dobindblock nm = rule $ \(Judgement hy g@(CType t)) -> do
+dobindblock nm = rule $ \(Judgement _ hy g@(CType t)) -> do
   case isItAMonad t of
     False -> throwError $ GoalMismatch "dobindblock" g
     True -> do
       i <- sem fresh
-      sg1 <- subgoal $ Judgement hy g
+      sg1 <- newSubgoal hy g
       -- TODO(sandy): this is wrong; sg2 should have sg1 bound at nm
-      sg2 <- subgoal $ Judgement hy g
+      sg2 <- newSubgoal hy g
       pure $ Underway i
            $ noLoc
            $ HsDo noExt DoExpr
@@ -199,17 +161,11 @@ isItAMonad _ = False
 
 
 apply :: TacticMems r => Tactic r
-apply = rule $ \(Judgement hy g) -> do
-  -- pprTraceM "hys" $ vcat
-  --   [ ppr $ fmap (second unCType) hy
-  --   ]
+apply = rule $ \(Judgement _ hy g) -> do
   case find ((== Just g) . fmap (CType . snd) . splitFunTy_maybe . unCType . snd) hy of
     Just (func, CType ty) -> do
       let (args, _) = splitFunTys ty
-      -- pprTraceM "args" $ vcat
-      --   [ ppr $ args
-      --   ]
-      sgs <- traverse (subgoal . Judgement hy . CType) args
+      sgs <- traverse (newSubgoal hy . CType) args
       pure . noLoc
            $ foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec)
                     (HsVar NoExt $ noLoc $ Unqual func) sgs
@@ -217,7 +173,7 @@ apply = rule $ \(Judgement hy g) -> do
 
 
 split :: TacticMems r => Tactic r
-split = rule $ \(Judgement hy g) ->
+split = rule $ \(Judgement _ hy g) ->
   case splitTyConApp_maybe $ unCType g of
     Just (tc, apps) ->
       case tyConDataCons tc of
@@ -226,15 +182,10 @@ split = rule $ \(Judgement hy g) ->
     Nothing -> throwError $ GoalMismatch "split" g
 
 
-buildDataCon :: [(OccName, CType)] -> DataCon -> [Type] -> Rule r
+buildDataCon :: Member (Fresh Integer) r => [(OccName, CType)] -> DataCon -> [Type] -> Rule r
 buildDataCon hy dc apps = do
   let args = dataConInstArgTys dc apps
-  -- pprTraceM "looking for" $ vcat
-  --   [ ppr args
-  --   , text "in"
-  --   , ppr $ fmap (second unCType) hy
-  --   ]
-  sgs <- traverse (subgoal . Judgement hy . CType) args
+  sgs <- traverse (newSubgoal hy . CType) args
   pure . noLoc
        . foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec)
                 (HsVar NoExt $ noLoc $ Unqual $ nameOccName $ dataConName dc)
@@ -284,12 +235,14 @@ substHole = flip $ foldr $ \(s, e) -> locate (matchOcc s) .~ e
 
 tactic :: TacticMems r => Type -> [(OccName, Type)] -> Tactic r -> Sem r (Maybe LExpr)
 tactic ty hy t = do
+  -- TODO(sandy): get a real id here
+  i <- fresh
   -- pprTraceM "hy" $ ppr hy
   fmap (fmap fst . hush)
     . runExceptT
     . runProvableT
     . runTacticT t
-    . Judgement (fmap (second CType) hy)
+    . Judgement i (fmap (second CType) hy)
     $ CType ty
 
 
@@ -307,20 +260,9 @@ one :: TacticMems r => Tactic r
 one = intro <!> assumption <!> split <!> apply <!> pure ()
 
 
-instance Member (Fresh Integer) r
-      => MonadExtract LExpr (ProvableT Judgement (ExceptT TacticError (Sem r))) where
-  hole = lift $ lift newTodo
-
-
 hush :: Outputable a => Either a b -> Maybe b
 hush (Right b) = Just b
 hush (Left _a) = do
   -- pprTraceM "hushed" $ ppr _a
   Nothing
-
-
--- tactics to write:
---
--- - constructor: choose a ctor from a list
--- - cut: introduce a let
 
