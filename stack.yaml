@@ -10,6 +10,7 @@ extra-deps:
 - ../brick
 - refinery-0.1.0.0
 - unipatterns-0.0.0.0
+- ghc-source-gen-0.1.0.0
 
 setup-info:
   ghc:

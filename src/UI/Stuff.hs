@@ -24,6 +24,7 @@ import           Sem.Ghc
 import           Sem.HoleInfo
 import           Sem.Typecheck
 import           Tactics
+import           TacticsV2
 import qualified Trie as T
 import           Types
 import           Zipper

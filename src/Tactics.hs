@@ -4,23 +4,8 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
 
-module Tactics
-  ( tactic
-  , auto
-  , apply
-  , one
-  , split
-  , deepen
-  , assumption
-  , intro
-  , destruct
-  , dobodyblock
-  , dobindblock
-  , homo
-  , Tactic
-  ) where
+module Tactics where
 
-import Control.Lens hiding (at)
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Bifunctor
@@ -29,12 +14,10 @@ import Data.List
 import Data.Traversable
 import DataCon
 import HsExprUtils
-import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import MarkerUtils
 import Name hiding (varName)
 import Outputable
 import Polysemy
-import Polysemy.Input
 import Refinery.Tactic hiding (runTacticT)
 import Sem.Fresh
 import TacticsV2
@@ -43,12 +26,16 @@ import TyCoRep
 import TyCon
 import Type
 import Types
+import GHC.SourceGen.Expr
+import GHC.SourceGen.Binds
+import GHC.SourceGen.Overloaded
+import GHC.SourceGen.Pat
+import GHC.Exts
 
 
 
 type TacticMems r = Members
   '[ Fresh Integer
-   , Input DynFlags
    ] r
 
 assumption :: Tactic r
@@ -64,16 +51,8 @@ intro = rule $ \(Judgement _ hy g) ->
   case unCType g of
     (FunTy a b) -> do
       v <- sem $ mkGoodName (getInScope hy) a
-      let vname = occNameString v
       sg <- newSubgoal ((v, CType a) : hy) $ CType b
-      e <- sem $ syntactically $ mconcat
-             [ "\\"
-             , vname
-             , " -> "
-             , "_a"
-             ]
-
-      pure $ substHole [("_a", sg)] e
+      pure $ noLoc $ lambda [VarPat noExt $ noLoc $ Unqual v] $ unLoc sg
     _ -> throwError $ GoalMismatch "intro" g
 
 
@@ -89,9 +68,8 @@ destruct' f term = rule $ \(Judgement _ hy g) -> do
         Nothing -> throwError $ GoalMismatch "destruct" g
         Just (tc, apps) -> do
           fmap noLoc
-              $ HsCase NoExt (noLoc $ HsVar NoExt $ noLoc $ Unqual term)
-              . flip (MG NoExt) FromSource
-              . noLoc <$> do
+              $ case' (HsVar NoExt $ noLoc $ Unqual term)
+              <$> do
             for (tyConDataCons tc) $ \dc -> do
               let args = dataConInstArgTys dc apps
               names <- flip evalStateT (getInScope hy) $ for args $ \at -> do
@@ -101,18 +79,12 @@ destruct' f term = rule $ \(Judgement _ hy g) -> do
                 pure n
 
               let pat :: Pat GhcPs
-                  pat = ConPatIn (noLoc $ Unqual $ nameOccName $ dataConName dc) $ PrefixCon $ do
-                          n <- names
-                          pure $ noLoc $ VarPat NoExt . noLoc $ Unqual n
+                  pat = conP (fromString $ occNameString $ nameOccName $ dataConName dc)
+                      $ fmap (var . fromString . occNameString) names
 
               j <- newJudgement (zip names (fmap CType args) ++ hy) g
               sg <- f dc j
-              pure
-                $ noLoc
-                $ Match NoExt CaseAlt [noLoc pat]
-                $ GRHSs NoExt [noLoc $ GRHS NoExt [] sg]
-                $ noLoc
-                $ EmptyLocalBinds NoExt
+              pure $ match [pat] $ rhs $ unLoc sg
 
 
 destruct :: TacticMems r => OccName -> Tactic r
@@ -167,8 +139,8 @@ apply = rule $ \(Judgement _ hy g) -> do
       let (args, _) = splitFunTys ty
       sgs <- traverse (newSubgoal hy . CType) args
       pure . noLoc
-           $ foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec)
-                    (HsVar NoExt $ noLoc $ Unqual func) sgs
+           . foldl' (@@) (HsVar NoExt $ noLoc $ Unqual func)
+           $ fmap unLoc sgs
     Nothing -> throwError $ GoalMismatch "apply" g
 
 
@@ -187,9 +159,8 @@ buildDataCon hy dc apps = do
   let args = dataConInstArgTys dc apps
   sgs <- traverse (newSubgoal hy . CType) args
   pure . noLoc
-       . foldl' (\a -> HsApp NoExt (noLoc a) . parenthesizeHsExpr appPrec)
-                (HsVar NoExt $ noLoc $ Unqual $ nameOccName $ dataConName dc)
-       $ sgs
+       . foldl' (@@) (HsVar NoExt $ noLoc $ Unqual $ nameOccName $ dataConName dc)
+       $ fmap unLoc sgs
 
 
 mkGoodName :: TacticMems r => [OccName] -> Type -> Sem r OccName
@@ -217,33 +188,23 @@ mkTyConName = fmap toLower . take 1 . occNameString . getOccName
 
 
 
-syntactically
+
+tactic
     :: TacticMems r
-    => String
-    -> Sem r LExpr
-syntactically str = do
-  i <- fresh
-  dflags <- input
-  case parseExpr dflags ("syntactically+" ++ show i) str of
-    Left _ -> error $ "you called syntactically badly, on " ++ str
-    Right (_, expr) -> do
-      pure expr
-
-substHole :: [(String, LExpr)] -> LExpr -> LExpr
-substHole = flip $ foldr $ \(s, e) -> locate (matchOcc s) .~ e
-
-
-tactic :: TacticMems r => Type -> [(OccName, Type)] -> Tactic r -> Sem r (Maybe LExpr)
+    => Type
+    -> [(OccName, Type)]
+    -> Tactic r
+    -> Sem r (Maybe LExpr)
 tactic ty hy t = do
-  -- TODO(sandy): get a real id here
   i <- fresh
-  -- pprTraceM "hy" $ ppr hy
+  tacticActual t . Judgement i (fmap (second CType) hy) $ CType ty
+
+tacticActual :: TacticMems r => Tactic r -> Judgement -> Sem r (Maybe LExpr)
+tacticActual t j = do
   fmap (fmap fst . hush)
     . runExceptT
     . runProvableT
-    . runTacticT t
-    . Judgement i (fmap (second CType) hy)
-    $ CType ty
+    $ runTacticT t j
 
 
 deepen :: TacticMems r => Int -> Tactic r

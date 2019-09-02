@@ -32,6 +32,13 @@ packages:
       sha256: b25d94753501df5aaaf64ace4cce524ea5dc191e674cb79acf59d95e39cdca79
   original:
     hackage: unipatterns-0.0.0.0
+- completed:
+    hackage: ghc-source-gen-0.1.0.0@sha256:ce7398cd6cd25737efad6b4a90b59d2ca5c6f0a94f3c96f4ebb086c2924afe50,2848
+    pantry-tree:
+      size: 1632
+      sha256: a34906b41e16f9ec131370bde8a6bfe2304ac9687584641616aea5c56634b6e5
+  original:
+    hackage: ghc-source-gen-0.1.0.0
 snapshots:
 - completed:
     size: 523443

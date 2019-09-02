@@ -65,7 +65,12 @@ type Tactic r = Tactics r ()
 type Rule r = RuleT Judgement LExpr (ProvableT Judgement (ExceptT TacticError (Sem r))) LExpr
 
 
-runTacticT :: forall m. Monad m => TacticT Judgement LExpr m () -> Judgement -> m (LExpr, [Judgement])
+runTacticT
+    :: forall m
+     . Monad m
+    => TacticT Judgement LExpr m ()
+    -> Judgement
+    -> m (LExpr, [Judgement])
 runTacticT (TacticT t) j =
     fmap (second reverse)
     $ flip runStateT []

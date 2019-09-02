@@ -1,26 +1,27 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
 
 module Printers where
 
-import  GHC hiding (getAnnotation)
-import  Polysemy
-import  Sem.Fresh
-import  Types
-import  Language.Haskell.GHC.ExactPrint
-import  Language.Haskell.GHC.ExactPrint.Print
-import  Language.Haskell.GHC.ExactPrint.Types
-import  Generics.SYB hiding (Generic, empty)
-import  Outputable
-import  Control.Lens
-import  FastString
-import  Annotations
+import GHC hiding (getAnnotation)
+import Polysemy
+import Sem.Fresh
+import Types
+import Language.Haskell.GHC.ExactPrint
+import Language.Haskell.GHC.ExactPrint.Print
+import Language.Haskell.GHC.ExactPrint.Types
+import Generics.SYB hiding (Generic, empty)
+import Outputable
+import Control.Lens
+import FastString
+import Annotations
 
 
 ok :: (Data a, Member (Fresh Integer) r) => a -> Sem r a
 ok = fmap sameVarSpans . everywhereM (mkM mkSrc)
   where
-    mkSrc s | s == noSrcSpan = uniqueSpan
-            | otherwise = pure s
+    mkSrc (UnhelpfulSpan _) = uniqueSpan
+    mkSrc s                 = pure s
 
 
 sameVarSpans :: Data a => a -> a
