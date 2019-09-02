@@ -37,7 +37,7 @@ main = do
        . runFileProvider
        . runAnno
        $ do
-    editFile "src/Lib.hs"
+    editFile "src/Test.hs"
     src <- focus
 
     let l = taking 1 anyTodo
