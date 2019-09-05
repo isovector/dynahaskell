@@ -2,14 +2,24 @@
 
 module Sem.API where
 
+import           Control.Arrow ((***))
+import           Control.Lens
 import           Control.Monad.Except
+import           MarkerUtils
+import           Name
 import           Polysemy
+import           Polysemy.State
 import           Refinery.Tactic (runProvableT)
+import           Sem.Anns
 import           Sem.Fresh
+import           Sem.HoleInfo
+import           Sem.Typecheck
 import           SrcLoc
 import qualified Tactics as T
 import qualified TacticsV2 as T
 import           Types
+import           Zipper
+import Data.Maybe
 
 
 data EditAPI m a where
@@ -30,7 +40,7 @@ makeSem ''EditLocation
 
 data SrcTree m a where
   SearchTree :: (LExpr -> Bool) -> SrcTree m [SrcSpan]
-  GetSpanExpr :: SrcSpan -> SrcTree m LExpr
+  GetSpanExpr :: SrcSpan -> SrcTree m (Maybe LExpr)
   ReplaceSpanExpr :: SrcSpan -> LExpr -> SrcTree m ()
 
 makeSem ''SrcTree
@@ -71,4 +81,41 @@ runEditAPI = interpret \case
       Right (ast, jdgs') -> do
         updateJudgements jdgs'
         replaceSpanExpr loc ast
+
+
+runTacticsEngine
+    :: Members '[ Anno
+                , State (Zipper Source)
+                , Typecheck
+                , Fresh Integer
+                ] r
+    => InterpreterOf TacticsEngine r
+runTacticsEngine = interpret \case
+  UpdateJudgements _ -> pure ()
+  GetJudgementAt src -> do
+    let l :: Traversal' LModule LExpr
+        l = taking 1 $ locate $ (== src) . getLoc
+
+    source <- focus
+    (goal, scope) <- head <$> holeInfo l source
+    -- TODO(sandy): is 0 ok?
+    pure $ T.Judgement 0 (fmap (nameOccName *** T.CType) scope) $ T.CType goal
+
+
+runSrcTree :: Members '[State (Zipper Source), Anno] r => InterpreterOf SrcTree r
+runSrcTree = interpret \case
+  SearchTree p -> do
+    z <- focus
+    pure $ z ^.. locate p . to getLoc
+  GetSpanExpr src -> do
+    z <- focus
+    pure $ listToMaybe $ z ^.. locate ((== src) . getLoc)
+  ReplaceSpanExpr src ast -> do
+    z <- focus
+    record =<< spliceTree (taking 1 $ locate $ (== src) . getLoc) ast z
+
+
+runEditLocation :: Members '[SrcTree] r => InterpreterOf EditLocation r
+runEditLocation = interpret \case
+  GetEditLocation -> fromMaybe noSrcSpan . listToMaybe <$> searchTree (has anyTodo)
 
