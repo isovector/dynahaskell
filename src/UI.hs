@@ -66,11 +66,10 @@ vim = Trie.fromList $ fmap (mapChars *** Last . Just)
   , "t"  --> semly one
   , "h"  --> prompt "Homo" $ semly . homo . mkVarOcc
   , "d"  --> prompt "Destruct" $ semly . destruct . mkVarOcc
-  , "e"  --> prompt "Edit" $ \c st -> M.performAction $ flip invalidateSuccess st
-                 $ edit (dTarget st) c
-  , "i"  --> prompt "Intro Name" $ \nm ->
-                   prompt "Intro Type" $ \ty st ->
-               M.performAction . flip invalidateSuccess st $ introduceTopLevel nm ty
+  , "e"  --> prompt "Edit" $ \c st ->
+               flip invalidateSuccess st $ edit (dTarget st) c
+  , "i"  --> prompt "Intro Name" $ \nm -> prompt "Intro Type" $ \ty ->
+               invalidateSuccess $ introduceTopLevel nm ty
 
 --   -- Monadic stuff
 --   , "moa"  --> invalidating $ tactful dobodyblock

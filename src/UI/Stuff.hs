@@ -151,8 +151,8 @@ prompt p f st = do
     f v st'
 
 invalidateSuccess
-  :: Mems r => Sem r (Maybe ()) -> Data r -> Sem r (Data r)
-invalidateSuccess m st = m >>= maybe (pure st) (const $ updateContext st)
+  :: Mems r => Sem r (Maybe ()) -> Data r -> EventM Names (Sem r) (Next (Sem r) (Data r))
+invalidateSuccess m st = M.performAction $ m >>= maybe (pure st) (const $ updateContext st)
 
 
 withEdit
