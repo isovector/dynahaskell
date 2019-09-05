@@ -54,10 +54,8 @@ vim = Trie.fromList $ fmap (mapChars *** Last . Just)
   , "st" --> selecting $ taking 1 anyTodo
 
   -- File stuff
-  , ";;" --> sem $ (saveFile >>) . pure
-  , ":e" --> invalidating $ prompt "File" $ \f st -> do
-               editFile f
-               pure st
+  , ";;" --> semly saveFile
+  , ":e" --> invalidating $ prompt "File" $ \f -> semly $ editFile f
 
   -- Undo/redo
   , "←"  --> invalidating (<$ undo)
@@ -66,15 +64,15 @@ vim = Trie.fromList $ fmap (mapChars *** Last . Just)
   -- Editing/tactics
   , "a"  --> sem $ \st -> auto >> pure st
   , "t"  --> sem $ \st -> one >> pure st
-  , "h"  --> sem . prompt "Homo" $ \d st ->
-               homo (mkVarOcc d) >> pure st
-  , "d"  --> sem . prompt "Destruct" $ \d st ->
-               destruct (mkVarOcc d) >> pure st
-  , "e"  --> sem . prompt "Edit" $ \c st -> flip invalidateSuccess st
+  , "h"  --> sem . prompt "Homo" $ \d ->
+               semly $ homo (mkVarOcc d)
+  , "d"  --> sem . prompt "Destruct" $ \d ->
+               semly $ destruct (mkVarOcc d)
+  , "e"  --> sem . prompt "Edit" $ \c st -> M.performAction $ flip invalidateSuccess st
                  $ edit (dTarget st) c
   , "i"  --> sem . prompt "Intro Name" $ \nm ->
-                   prompt "Intro Type" $ \ty ->
-               invalidateSuccess $ introduceTopLevel nm ty
+                   sem $ prompt "Intro Type" $ \ty st ->
+               M.performAction . flip invalidateSuccess st $ introduceTopLevel nm ty
 
 --   -- Monadic stuff
 --   , "moa"  --> invalidating $ tactful dobodyblock
@@ -196,11 +194,10 @@ appEvent st (T.VtyEvent e) | Just (_, cont) <- dEditCont st = do
     V.EvKey V.KEnter [] -> do
       invalidateCacheEntry CodeCache
       let c = getEditContents $ dEditor st
-      M.performAction $ do
-        cont (concat c) $ st
-          { dEditCont = Nothing
-          , dEditor = resetEditor
-          }
+      cont (concat c) $ st
+        { dEditCont = Nothing
+        , dEditor = resetEditor
+        }
     _ -> do
       edit' <- handleEditorEvent e (dEditor st)
       M.continue $ st

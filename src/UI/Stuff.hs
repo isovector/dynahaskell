@@ -39,7 +39,7 @@ type Vim r = T.Vim V.Key (Action r)
 
 
 data Data r = Data
-  { dEditCont :: Maybe (String, String -> Data r -> Sem r (Data r))
+  { dEditCont :: Maybe (String, String -> Data r -> EventM Names (Sem r) (Next (Sem r) (Data r)))
   , dEditor   :: Editor String Names
   , dVimDFA   :: Vim r
   , dTarget   :: Traversal' LModule LExpr
@@ -139,12 +139,13 @@ continuing m st = m >> continue st
 
 
 sem :: Monad m => (t -> m s) -> t -> EventM n m (Next m s)
-sem m st = do
-  M.performAction $ do
-    m st
+sem m st = M.performAction $ m st
+
+semly :: Monad m =>  m () -> s -> EventM n m (Next m s)
+semly m st = M.performAction $ m >> pure st
 
 
-prompt :: String -> (String -> Data r -> Sem r (Data r)) -> Data r -> Sem r (Data r)
+prompt :: String -> (String -> Data r -> EventM Names (Sem r) (Next (Sem r) (Data r))) -> Data r -> Sem r (Data r)
 prompt p f st = do
   withEdit st p $ \v st' ->
     f v st'
@@ -159,7 +160,7 @@ withEdit
     -> String
     -> (String
         -> Data r
-        -> Sem r (Data r))
+        -> EventM Names (Sem r) (Next (Sem r) (Data r)))
     -> Sem r (Data r)
 withEdit st p cont = pure $ st
   { dEditCont = Just (p, cont)
