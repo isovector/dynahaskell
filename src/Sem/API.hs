@@ -5,6 +5,7 @@ module Sem.API where
 import           Control.Arrow ((***))
 import           Control.Lens
 import           Control.Monad.Except
+import           Data.Maybe
 import           MarkerUtils
 import           Name
 import           Polysemy
@@ -19,7 +20,6 @@ import qualified Tactics as T
 import qualified TacticsV2 as T
 import           Types
 import           Zipper
-import Data.Maybe
 
 
 data EditAPI m a where
@@ -64,7 +64,7 @@ runEditAPI
 runEditAPI = interpret \case
   Auto         -> runTacticOf T.auto
   One          -> runTacticOf T.one
-  Homo occ     -> runTacticOf $ T.homo occ
+  Homo occ     -> runTacticOf $ T.homo occ >> T.auto
   Destruct occ -> runTacticOf $ T.destruct occ
   Replace ast  -> do
     loc <- getEditLocation
@@ -117,5 +117,8 @@ runSrcTree = interpret \case
 
 runEditLocation :: Members '[SrcTree] r => InterpreterOf EditLocation r
 runEditLocation = interpret \case
-  GetEditLocation -> fromMaybe noSrcSpan . listToMaybe <$> searchTree (has anyTodo)
+  GetEditLocation -> do
+    let p (Todo _) = True
+        p _ = False
+    fromMaybe noSrcSpan . listToMaybe <$> searchTree p
 

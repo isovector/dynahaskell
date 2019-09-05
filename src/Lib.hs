@@ -24,6 +24,7 @@ import Sem.Typecheck
 import UI
 import Zipper
 import HIE.Bios
+import Sem.API
 
 
 
@@ -36,6 +37,10 @@ main = do
        . stateAndInput (Zipper [] undefined [])
        . runFileProvider
        . runAnno
+       . runSrcTree
+       . runEditLocation
+       . runTacticsEngine
+       . runEditAPI
        $ do
     editFile "src/Test.hs"
     src <- focus

@@ -30,8 +30,8 @@ import           Outputable (ppr, text)
 import           Polysemy
 import           Polysemy.Input
 import           Printers
+import           Sem.API
 import           Sem.FileProvider
-import           Tactics
 import qualified Trie as Trie
 import           Types
 import           UI.Stuff
@@ -64,26 +64,26 @@ vim = Trie.fromList $ fmap (mapChars *** Last . Just)
   , "→"  --> invalidating (<$ redo)
 
   -- Editing/tactics
-  , "a"  --> invalidating $ tactful auto
-  , "t"  --> invalidating $ tactful one
-  , "h"  --> sem . prompt "Homo" $ \d ->
-                 tactfulInvalid $ homo (mkVarOcc d) >> auto
-  , "d"  --> sem . prompt "Destruct"
-                 $ tactfulInvalid . destruct . mkVarOcc
+  , "a"  --> sem $ \st -> auto >> pure st
+  , "t"  --> sem $ \st -> one >> pure st
+  , "h"  --> sem . prompt "Homo" $ \d st ->
+               homo (mkVarOcc d) >> pure st
+  , "d"  --> sem . prompt "Destruct" $ \d st ->
+               destruct (mkVarOcc d) >> pure st
   , "e"  --> sem . prompt "Edit" $ \c st -> flip invalidateSuccess st
                  $ edit (dTarget st) c
   , "i"  --> sem . prompt "Intro Name" $ \nm ->
                    prompt "Intro Type" $ \ty ->
                invalidateSuccess $ introduceTopLevel nm ty
 
-  -- Monadic stuff
-  , "moa"  --> invalidating $ tactful dobodyblock
-  , "mob"  --> sem . prompt "Bind Name"
-                 $ tactfulInvalid . dobindblock
-  , "ma"   --> invalidating $ purely $ doaction $ anyUnderway . underwayStmts
-  , "mb"   --> sem . prompt "Bind Name" $ \nm st ->
-                 flip invalidateSuccess st $
-                   Just () <$ (dobind nm $ anyUnderway . underwayStmts)
+--   -- Monadic stuff
+--   , "moa"  --> invalidating $ tactful dobodyblock
+--   , "mob"  --> sem . prompt "Bind Name"
+--                  $ tactfulInvalid . dobindblock
+--   , "ma"   --> invalidating $ purely $ doaction $ anyUnderway . underwayStmts
+--   , "mb"   --> sem . prompt "Bind Name" $ \nm st ->
+--                  flip invalidateSuccess st $
+--                    Just () <$ (dobind nm $ anyUnderway . underwayStmts)
 
   -- Quit
   , "q" --> M.halt

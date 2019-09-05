@@ -17,6 +17,7 @@ import           Name
 import           Polysemy
 import           Polysemy.Input
 import           Polysemy.State
+import           Sem.API
 import           Sem.Anns
 import           Sem.FileProvider
 import           Sem.Fresh
@@ -60,6 +61,7 @@ type Mems r =
      , Fresh Integer
      , Embed IO
      , FileProvider
+     , EditAPI
      ] r
 
 
