@@ -39,7 +39,9 @@ type Vim r = T.Vim V.Key (Action r)
 
 
 data Data r = Data
-  { dEditCont :: Maybe (String, String -> Data r -> EventM Names (Sem r) (Next (Sem r) (Data r)))
+  { dEditCont :: Maybe ( String
+                       , String -> Data r -> EventM Names (Sem r) (Next (Sem r) (Data r))
+                       )
   , dEditor   :: Editor String Names
   , dVimDFA   :: Vim r
   , dTarget   :: Traversal' LModule LExpr
@@ -103,17 +105,20 @@ scroller :: Monad m => ViewportScroll Names m
 scroller = viewportScroll Code
 
 
-tactful :: Mems r=> Tactic r -> Data r -> Sem r (Data r)
+tactful :: Mems r => Tactic r -> Data r -> Sem r (Data r)
 tactful t st = st <$ runTacticOf t st
 
-tactfulInvalid :: Mems r=> Tactic r -> Data r -> Sem r (Data r)
+tactfulInvalid :: Mems r => Tactic r -> Data r -> Sem r (Data r)
 tactfulInvalid t st = do
   runTacticOf t st
   updateContext st
 
 
 invalidating
-  :: Mems r => (t -> Sem r (Data r)) -> t -> EventM Names (Sem r) (Next (Sem r) (Data r))
+    :: Mems r
+    => (t -> Sem r (Data r))
+    -> t
+    -> EventM Names (Sem r) (Next (Sem r) (Data r))
 invalidating m st = do
   invalidateCacheEntry CodeCache
   M.performAction $ do
@@ -122,7 +127,10 @@ invalidating m st = do
 
 
 selecting
-  :: Mems r => Traversal' LModule LExpr -> Data r -> EventM Names (Sem r) (Next (Sem r) (Data r))
+    :: Mems r
+    => Traversal' LModule LExpr
+    -> Data r
+    -> EventM Names (Sem r) (Next (Sem r) (Data r))
 selecting t st = do
   invalidateCacheEntry CodeCache
   M.continue $ st
@@ -145,13 +153,22 @@ semly :: Monad m =>  m () -> s -> EventM n m (Next m s)
 semly m st = M.performAction $ m >> pure st
 
 
-prompt :: String -> (String -> Data r -> EventM Names (Sem r) (Next (Sem r) (Data r))) -> Data r -> EventM Names (Sem r) (Next (Sem r) (Data r))
+prompt
+    :: String
+    -> (String
+        -> Data r
+        -> EventM Names (Sem r) (Next (Sem r) (Data r)))
+    -> Data r
+    -> EventM Names (Sem r) (Next (Sem r) (Data r))
 prompt p f st = do
   withEdit st p $ \v st' ->
     f v st'
 
 invalidateSuccess
-  :: Mems r => Sem r (Maybe ()) -> Data r -> EventM Names (Sem r) (Next (Sem r) (Data r))
+    :: Mems r
+    => Sem r (Maybe ())
+    -> Data r
+    -> EventM Names (Sem r) (Next (Sem r) (Data r))
 invalidateSuccess m st = M.performAction $ m >>= maybe (pure st) (const $ updateContext st)
 
 
