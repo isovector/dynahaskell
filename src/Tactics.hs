@@ -154,7 +154,12 @@ split = rule $ \(Judgement _ hy g) ->
     Nothing -> throwError $ GoalMismatch "split" g
 
 
-buildDataCon :: Member (Fresh Integer) r => [(OccName, CType)] -> DataCon -> [Type] -> Rule r
+buildDataCon
+    :: Member (Fresh Integer) r
+    => [(OccName, CType)]
+    -> DataCon
+    -> [Type]
+    -> Rule r
 buildDataCon hy dc apps = do
   let args = dataConInstArgTys dc apps
   sgs <- traverse (newSubgoal hy . CType) args

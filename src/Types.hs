@@ -36,6 +36,7 @@ import HsTypes
 import OccName
 import RdrName
 import Language.Haskell.GHC.ExactPrint
+import Polysemy
 
 type Expr = HsExpr GhcPs
 type Module = HsModule GhcPs
@@ -53,4 +54,6 @@ data Source = Source
   deriving (Data, Generic)
 
 deriving instance Data Annotation
+
+type InterpreterOf e r = forall x. Sem (e ': r) x -> Sem r x
 
