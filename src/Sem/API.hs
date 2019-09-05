@@ -5,7 +5,9 @@ module Sem.API where
 import           Control.Arrow ((***))
 import           Control.Lens
 import           Control.Monad.Except
+import           Data.Foldable
 import           Data.Maybe
+import           Data.Traversable
 import           MarkerUtils
 import           Name
 import           Polysemy
@@ -47,7 +49,7 @@ makeSem ''SrcTree
 
 
 data TacticsEngine m a where
-  GetJudgementAt :: SrcSpan -> TacticsEngine m T.Judgement
+  GetJudgementAt :: SrcSpan -> TacticsEngine m (Maybe T.Judgement)
   UpdateJudgements :: [T.Judgement] -> TacticsEngine m ()
 
 makeSem ''TacticsEngine
@@ -74,13 +76,14 @@ runEditAPI = interpret \case
   runTacticOf :: T.Tactic r -> Sem r ()
   runTacticOf t = do
     loc <- getEditLocation
-    jdg <- getJudgementAt loc
-    z <- runExceptT . runProvableT $ T.runTacticT t jdg
-    case z of
-      Left _err -> pure ()
-      Right (ast, jdgs') -> do
-        updateJudgements jdgs'
-        replaceSpanExpr loc ast
+    mjdg <- getJudgementAt loc
+    for_ mjdg $ \jdg -> do
+      z <- runExceptT . runProvableT $ T.runTacticT t jdg
+      case z of
+        Left _err -> pure ()
+        Right (ast, jdgs') -> do
+          updateJudgements jdgs'
+          replaceSpanExpr loc ast
 
 
 runTacticsEngine
@@ -97,9 +100,9 @@ runTacticsEngine = interpret \case
         l = taking 1 $ locate $ (== src) . getLoc
 
     source <- focus
-    (goal, scope) <- head <$> holeInfo l source
-    -- TODO(sandy): is 0 ok?
-    pure $ T.Judgement 0 (fmap (nameOccName *** T.CType) scope) $ T.CType goal
+    z <- listToMaybe <$> holeInfo l source
+    for z $ \(goal, scope) ->
+      pure $ T.Judgement 0 (fmap (nameOccName *** T.CType) scope) $ T.CType goal
 
 
 runSrcTree :: Members '[State (Zipper Source), Anno] r => InterpreterOf SrcTree r
