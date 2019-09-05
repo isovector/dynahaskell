@@ -145,7 +145,7 @@ semly :: Monad m =>  m () -> s -> EventM n m (Next m s)
 semly m st = M.performAction $ m >> pure st
 
 
-prompt :: String -> (String -> Data r -> EventM Names (Sem r) (Next (Sem r) (Data r))) -> Data r -> Sem r (Data r)
+prompt :: String -> (String -> Data r -> EventM Names (Sem r) (Next (Sem r) (Data r))) -> Data r -> EventM Names (Sem r) (Next (Sem r) (Data r))
 prompt p f st = do
   withEdit st p $ \v st' ->
     f v st'
@@ -161,8 +161,8 @@ withEdit
     -> (String
         -> Data r
         -> EventM Names (Sem r) (Next (Sem r) (Data r)))
-    -> Sem r (Data r)
-withEdit st p cont = pure $ st
+    -> EventM Names (Sem r) (Next (Sem r) (Data r))
+withEdit st p cont = M.continue st
   { dEditCont = Just (p, cont)
   , dEditor = resetEditor
   }

@@ -55,23 +55,21 @@ vim = Trie.fromList $ fmap (mapChars *** Last . Just)
 
   -- File stuff
   , ";;" --> semly saveFile
-  , ":e" --> invalidating $ prompt "File" $ \f -> semly $ editFile f
+  , ":e" --> prompt "File" $ \f -> invalidating (<$ editFile f)
 
   -- Undo/redo
   , "←"  --> invalidating (<$ undo)
   , "→"  --> invalidating (<$ redo)
 
   -- Editing/tactics
-  , "a"  --> sem $ \st -> auto >> pure st
-  , "t"  --> sem $ \st -> one >> pure st
-  , "h"  --> sem . prompt "Homo" $ \d ->
-               semly $ homo (mkVarOcc d)
-  , "d"  --> sem . prompt "Destruct" $ \d ->
-               semly $ destruct (mkVarOcc d)
-  , "e"  --> sem . prompt "Edit" $ \c st -> M.performAction $ flip invalidateSuccess st
+  , "a"  --> semly auto
+  , "t"  --> semly one
+  , "h"  --> prompt "Homo" $ semly . homo . mkVarOcc
+  , "d"  --> prompt "Destruct" $ semly . destruct . mkVarOcc
+  , "e"  --> prompt "Edit" $ \c st -> M.performAction $ flip invalidateSuccess st
                  $ edit (dTarget st) c
-  , "i"  --> sem . prompt "Intro Name" $ \nm ->
-                   sem $ prompt "Intro Type" $ \ty st ->
+  , "i"  --> prompt "Intro Name" $ \nm ->
+                   prompt "Intro Type" $ \ty st ->
                M.performAction . flip invalidateSuccess st $ introduceTopLevel nm ty
 
 --   -- Monadic stuff
