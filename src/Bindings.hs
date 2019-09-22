@@ -31,7 +31,55 @@ bindings in_scope = foldMapOf biplate $ cool collect
     collect (HsLet _ (L _ binds) expr) =
       let (in_scope', res) = localBindsBindings in_scope binds
        in M.union (bindings in_scope' expr) res
-    collect v = bindings in_scope v
+    collect (HsVar _ _)         = mempty
+    collect (HsUnboundVar _ _)  = mempty
+    collect (HsConLikeOut _ _)  = mempty
+    collect (HsRecFld _ _)      = mempty
+    collect (HsOverLabel _ _ _) = mempty
+    collect (HsIPVar _ _)       = mempty
+    collect (HsOverLit _ _)     = mempty
+    collect (HsLit _ _)         = mempty
+    collect (HsApp _ a b)       = M.union (bindings in_scope a) (bindings in_scope b)
+    collect (HsAppType _ a)     = bindings in_scope a
+    collect (OpApp _ a b c) =
+      mconcat
+        [ bindings in_scope a
+        , bindings in_scope b
+        , bindings in_scope c
+        ]
+    collect (NegApp _ a _) = bindings in_scope a
+    collect (HsPar _ a)    = bindings in_scope a
+    collect (SectionL _ a b) =
+      mconcat
+       [ bindings in_scope a
+       , bindings in_scope b
+       ]
+    collect (SectionR _ a b) =
+      mconcat
+        [ bindings in_scope a
+        , bindings in_scope b
+        ]
+    collect (ExplicitTuple _ a _) = bindings in_scope a
+    collect (ExplicitSum _ _ _ a) = bindings in_scope a
+    collect (HsIf _ _ a b c) =
+      mconcat
+        [ bindings in_scope a
+        , bindings in_scope b
+        , bindings in_scope c
+        ]
+    collect (HsMultiIf _ a)      = bindings in_scope a
+    collect (HsDo _ _ a)         = bindings in_scope a
+    collect (ExplicitList _ _ a) = bindings in_scope a
+    collect (RecordCon _ _ a)    = bindings in_scope a
+    collect (RecordUpd _ _ a)    = bindings in_scope a
+    collect (ExprWithTySig _ a)  = bindings in_scope a
+    collect (ArithSeq _ _ a)     = bindings in_scope a
+    collect (HsSCC _ _ _ a)      = bindings in_scope a
+    collect (HsBracket _ a)      = bindings in_scope a
+    collect (HsStatic _ a)       = bindings in_scope a
+    -- TODO(sandy): This doesn't do arrow syntax
+    collect _ = mempty
+
 
 
 matchGroupBindings :: S.Set Id -> MatchGroup GhcTc (LHsExpr GhcTc) -> M.Map SrcSpan (S.Set Id)
