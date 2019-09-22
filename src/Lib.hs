@@ -47,7 +47,7 @@ main = do
 
     let l = taking 1 anyTodo
     holes <- holeInfo l src
-    void $ defaultMain app $ defData l (listToMaybe holes)
+    void $ defaultMain app $ defData l $ listToMaybe holes
 
 
 stateAndInput :: s -> Sem (Input s ': State s ': r) a -> Sem r a

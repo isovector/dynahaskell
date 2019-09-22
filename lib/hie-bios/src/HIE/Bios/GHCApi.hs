@@ -97,7 +97,7 @@ initializeFlagsWithCradleWithMessage msg fp cradle = do
       case ex of
         ExitFailure _ -> throwCradleError err
         _ -> return ()
-      let compOpts = CompilerOptions ghcOpts
+      let compOpts = CompilerOptions $ "-fwrite-interface" : "-fno-code" : "-hidir=/tmp" : ghcOpts
       initSessionWithMessage msg compOpts
 
 data CradleError = CradleError String deriving (Show)
