@@ -15,6 +15,9 @@ import Sem.Typecheck
 import Types hiding (Type)
 
 
+-- TODO(sandy): This is absolutely terrible. We can just call `fmap exprType . dsExpr`
+-- to get the type of a particular expression; no need to continually recompile
+-- and typecheck the whole thing every time.
 holeInfo
     :: Members '[Typecheck, Anno, Fresh Integer] r
     => Traversal' LModule LExpr
