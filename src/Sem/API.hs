@@ -105,6 +105,8 @@ runTacticsEngine = interpret \case
       pure $ T.Judgement 0 (fmap (nameOccName *** T.CType) scope) $ T.CType goal
 
 
+-- TODO(sandy): Why expose the fact that this thing is a `State Zipper`?
+-- We could hide the time travel part in another effect. Much smarter.
 runSrcTree :: Members '[State (Zipper Source), Anno] r => InterpreterOf SrcTree r
 runSrcTree = interpret \case
   SearchTree p -> do
