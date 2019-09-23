@@ -12,8 +12,8 @@ import           SrcLoc
 import           Types
 
 
-bindings :: TypecheckedModule -> M.Map SrcSpan (S.Set Id)
-bindings = snd . bindsBindings mempty . tm_typechecked_source
+bindings :: TypecheckedModule -> (S.Set Id, M.Map SrcSpan (S.Set Id))
+bindings = bindsBindings mempty . tm_typechecked_source
 
 
 dataBindings :: Data a => S.Set Id -> a -> M.Map SrcSpan (S.Set Id)
