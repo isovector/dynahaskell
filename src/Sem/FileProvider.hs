@@ -4,7 +4,7 @@
 module Sem.FileProvider where
 
 import DynFlags
-import GHC (SrcSpan)
+import GHC (SrcSpan, tm_typechecked_source)
 import Language.Haskell.GHC.ExactPrint.Parsers hiding (parseModuleFromString)
 import Polysemy
 import Polysemy.State
@@ -42,8 +42,10 @@ runFileProvider
   . evalState ""
   . (reinterpret \case
       EditFile fp -> do
-        mdflags <- fmap (fmap snd) $ embed $ loadFile @Ghc (fp, fp)
-        dflags  <- maybe (error "runFileProvider: no dflags") pure mdflags
+        mdflags <- embed $ loadFile @Ghc (fp, fp)
+        dflags <- case mdflags of
+          Just (_tcmod, dflags) -> pure dflags
+          Nothing -> error "runFileProvider: no dflags"
         put dflags
 
         z <- embed $ parseFileModule fp dflags
